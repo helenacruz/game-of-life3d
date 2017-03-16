@@ -16,11 +16,11 @@ private:
     int sideSize;
 
     std::map<Cell, int> currentDeadCells;
-    std::unordered_set<Cell> currentGeneration;
-    std::unordered_set<Cell> nextGeneration;
+    std::unordered_set<Cell, Cell::hash> currentGeneration;
+    std::unordered_set<Cell, Cell::hash> nextGeneration;
 
 public:
-    Generation(int nrGenerations, int sideSize, std::unordered_set<Cell> initialGenerationCells);
+    Generation(int nrGenerations, int sideSize, std::unordered_set<Cell, Cell::hash> initialGenerationCells);
     void evolve();
     friend std::ostream& operator<<(std::ostream& os, const Generation& obj);
 };

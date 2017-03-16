@@ -17,12 +17,25 @@ private:
     int y;
     int z;
 
+
 public:
+    struct hash;
     Cell(int x, int y, int z);
     std::vector<Cell> getNeighbors();
 
     friend std::ostream &operator<<(std::ostream &os, const Cell &cell);
 
+    bool operator==(const Cell &rhs) const;
+
+    bool operator!=(const Cell &rhs) const;
+
+    bool isAlive() const;
+
+    int getX() const;
+
+    int getY() const;
+
+    int getZ() const;
 };
 
 

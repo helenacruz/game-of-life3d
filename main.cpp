@@ -5,6 +5,8 @@
 
 #define ARG_SIZE 3
 
+
+
 int main(int argc, char* argv[]) {
 
     // Verify initial argument correct size
@@ -19,7 +21,7 @@ int main(int argc, char* argv[]) {
     // Get number of iterations
     int nrIterations = std::stoi(argv[2]);
 
-    std::unordered_set<Cell> initialGeneration;
+    std::unordered_set<Cell, Cell::hash> initialGeneration;
 
     // Read file
     std::ifstream infile(fileName + ".in");
