@@ -27,3 +27,7 @@
 *.exe
 *.out
 *.app
+
+# Idea files
+.idea/*
+cmake-build-debug/*
