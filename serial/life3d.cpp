@@ -74,7 +74,7 @@ std::unordered_set<Cell, Cell::hash> nextGeneration;
 std::unordered_map<Cell, int, Cell::hash> deadCells;
 
 void evolve();
-void getNeighbors(Cell cell, std::vector<Cell> &neighbors);
+int getNeighbors(Cell cell);
 
 inline void printResults();
 inline void printCells(std::vector<Cell> &cells);
@@ -113,29 +113,24 @@ int main(int argc, char* argv[]) {
 void evolve() {
 
     for (auto it = currentGeneration.begin(); it != currentGeneration.end(); ++it) {
-    	std::vector<Cell> neighbors;
-        getNeighbors(*it, neighbors);
+        int neighbors = getNeighbors(*it);
         
-        // std::cout << "neighbors: " << std::endl;
-        // printCells(neighbors);
+        // std::cout << "neighbors: " << neighbors << std::endl;
 
-        if (neighbors.size() < 2) {
+        if (neighbors< 2) {
             // do nothing, cell dies
         }
-        else if (neighbors.size() >= 2 && neighbors.size() <= 4) {
+        else if (neighbors >= 2 && neighbors <= 4) {
             // with 2 to 4 neighbors the cell lives 
             nextGeneration.insert(*it);
         }
-        else if (neighbors.size() > 4) {
+        else if (neighbors > 4) {
             // do nothing, cell dies
         }
         else {
             std::cout << "Should not happen" << std::endl;
-            std::cout << "Number of neighbors: " << neighbors.size() <<
-                         std::endl;
-            printCells(neighbors);
+            std::cout << "Number of neighbors: " << neighbors << std::endl;
         }
-
     } 
 
     // std::cout << "dead cells: " << std::endl;
@@ -160,7 +155,8 @@ void evolve() {
     */
 }
 
-void getNeighbors(Cell cell, std::vector<Cell> &neighbors) {
+int getNeighbors(Cell cell) {
+    int nrNeighbors = 0;
     int x = cell.getX();
     int y = cell.getY();
     int z = cell.getZ();
@@ -228,7 +224,7 @@ void getNeighbors(Cell cell, std::vector<Cell> &neighbors) {
     }
 
     if (currentGeneration.count(cell1) > 0) {
-        neighbors.push_back(cell1);
+        nrNeighbors++;
         // std::cout << "cell1" << std::endl;
     }
     else {
@@ -236,7 +232,7 @@ void getNeighbors(Cell cell, std::vector<Cell> &neighbors) {
         // std::cout << "dead cell1 neighbor: " << cell1 << std::endl;
     }
     if (currentGeneration.count(cell2) > 0) {
-        neighbors.push_back(cell2);
+        nrNeighbors++;
         // std::cout << "cell2" << std::endl;
     }
     else {
@@ -244,7 +240,7 @@ void getNeighbors(Cell cell, std::vector<Cell> &neighbors) {
         // std::cout << "dead cell2 neighbor: " << cell2 << std::endl;
     }
     if (currentGeneration.count(cell3) > 0) {
-        neighbors.push_back(cell3);	
+        nrNeighbors++;	
         // std::cout << "cell3" << std::endl;
     }
     else {
@@ -252,7 +248,7 @@ void getNeighbors(Cell cell, std::vector<Cell> &neighbors) {
         // std::cout << "dead cell3 neighbor: " << cell3 << std::endl;
     }
     if (currentGeneration.count(cell4) > 0) {
-        neighbors.push_back(cell4);
+        nrNeighbors++;
         // std::cout << "cell4" << std::endl;
     }
     else {
@@ -260,7 +256,7 @@ void getNeighbors(Cell cell, std::vector<Cell> &neighbors) {
         // std::cout << "dead cell4 neighbor: " << cell4 << std::endl;
     }
     if (currentGeneration.count(cell5) > 0) {
-        neighbors.push_back(cell5);
+        nrNeighbors++;
         // std::cout << "cell5" << std::endl;
     }
     else {
@@ -268,13 +264,15 @@ void getNeighbors(Cell cell, std::vector<Cell> &neighbors) {
         // std::cout << "dead cell5 neighbor: " << cell5 << std::endl;
     }
     if (currentGeneration.count(cell6) > 0) {
-        neighbors.push_back(cell6);
+        nrNeighbors++;
         // std::cout << "cell6" << std::endl;
     }
     else {
         deadCells[cell6] += 1;
         // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
     } 
+
+    return nrNeighbors;
 }
 
 /* Aux functions for printing data */
