@@ -31,3 +31,6 @@
 # Idea files
 .idea/*
 cmake-build-debug/*
+
+# Test files
+*.myout
