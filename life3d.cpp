@@ -18,7 +18,9 @@ private:
 
 public:
 
-    Cell() { }
+    Cell() {
+	
+	}
 
     Cell(int x, int y, int z) : x(x), y(y), z(z) {
 
@@ -56,7 +58,7 @@ public:
     }
 
     struct hash {
-        size_t operator()(Cell const & x) const noexcept
+        size_t operator()(Cell const &x) const noexcept
         {
             return ((51 + std::hash<int>()(x.getX())) *
                     (51 + std::hash<int>()(x.getY())) *
@@ -116,21 +118,11 @@ void evolve() {
         int neighbors = getNeighbors(*it);
         
         // std::cout << "neighbors: " << neighbors << std::endl;
-
-        if (neighbors< 2) {
-            // do nothing, cell dies
-        }
-        else if (neighbors >= 2 && neighbors <= 4) {
+		
+		if (neighbors >= 2 && neighbors <= 4) {
             // with 2 to 4 neighbors the cell lives 
             nextGeneration.insert(*it);
-        }
-        else if (neighbors > 4) {
-            // do nothing, cell dies
-        }
-        else {
-            std::cout << "Should not happen" << std::endl;
-            std::cout << "Number of neighbors: " << neighbors << std::endl;
-        }
+		}
     } 
 
     // std::cout << "dead cells: " << std::endl;
