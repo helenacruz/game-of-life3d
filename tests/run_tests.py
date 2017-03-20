@@ -32,13 +32,12 @@ subprocess.run(serial_command)
 
 for file in files:
     name = file[0] + '.' + file[1]
-    with open(name + '.myout') as outfile:
+    with open(name + '.myout', 'w') as outfile:
         run_command = (['./life3d', file[0] + '.in', file[1]]);
         print(BOLD + ' '.join(run_command) + RESET)
         start = time.time() 
         subprocess.run(run_command, stdout=outfile)
         end = time.time()
-        outfile.close()
         diff_command = (['diff', name + '.out', name + '.myout'])
         result = subprocess.run(diff_command, stdout=subprocess.PIPE)
         print(RESET + "Time passed: %.4f" % (end - start) + "s")
