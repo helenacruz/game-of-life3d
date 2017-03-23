@@ -19,8 +19,8 @@ private:
 public:
 
     Cell() {
-	
-	}
+    
+    }
 
     Cell(int x, int y, int z) : x(x), y(y), z(z) {
 
@@ -117,16 +117,11 @@ void evolve() {
     for (auto it = currentGeneration.begin(); it != currentGeneration.end(); ++it) {
         int neighbors = getNeighbors(*it);
         
-        // std::cout << "neighbors: " << neighbors << std::endl;
-		
-		if (neighbors >= 2 && neighbors <= 4) {
+        if (neighbors >= 2 && neighbors <= 4) {
             // with 2 to 4 neighbors the cell lives 
             nextGeneration.insert(*it);
-		}
+        }
     } 
-
-    // std::cout << "dead cells: " << std::endl;
-    // printCells(deadCells);
 
     for (auto it = deadCells.begin(); it != deadCells.end(); ++it) {
         if (it->second == 2 || it->second == 3) {
@@ -137,14 +132,6 @@ void evolve() {
     currentGeneration = nextGeneration; // new generation is our current generation
     nextGeneration = {}; // clears new generation
     deadCells.clear(); // clears dead cells from previous generation
-
-    /*
-    std::cout << "Next: " << std::endl;
-    printCells(nextGeneration);
-
-    std::cout << "Current: " << std::endl;
-    printCells(currentGeneration);
-    */
 }
 
 int getNeighbors(Cell cell) {
@@ -152,9 +139,6 @@ int getNeighbors(Cell cell) {
     int x = cell.getX();
     int y = cell.getY();
     int z = cell.getZ();
-
-    // std::cout << "cell: " << cell << std::endl;
-
     int xx, yy, zz;
 
     Cell cell1;
@@ -232,7 +216,7 @@ int getNeighbors(Cell cell) {
         // std::cout << "dead cell2 neighbor: " << cell2 << std::endl;
     }
     if (currentGeneration.count(cell3) > 0) {
-        nrNeighbors++;	
+        nrNeighbors++;  
         // std::cout << "cell3" << std::endl;
     }
     else {
@@ -275,6 +259,8 @@ inline void printResults() {
     for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
         std::cout << *it << std::endl;
     }
+
+    std::cout << "size: " << lastGeneration.size() << std::endl;
 }
 
 inline void printCells(std::vector<Cell> &cells)
@@ -297,4 +283,17 @@ inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells) {
         std::cout << "nr: " << it->second << std::endl;
     }
 }
-
+/*
+ * Usar o schedule dynamic [,chunk]
+ * Temos de encontrar o numero optimo de chunks: analizar o size e o nº de threads para distribuir os calculos
+ * Nº sets = nº chunks * nº threads
+ * Inicializar os sets
+ * Criar um vector de unordered sets para definir quais os sets que cada thread deve tratar (buscar os sets de acordo com o indice do vector-pensar no indices)
+ * 
+ * Na ultima generation, juntar todos os unordered_sets criados previamente num set ordenado (para devolver o resultado ordenado)
+ * 
+ * Escrever codigo
+ * Teclar codigo
+ * Codar
+ * Pensar
+ */
