@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <tuple>
 #include <omp.h>
+#include <cmath>
 
 #define ARG_SIZE 3
 #define CHUNK_SIZE 4
@@ -71,7 +72,6 @@ public:
 };
 
 int size;
-int nrGenerations;
 
 // new data structures
 typedef std::unordered_set<Cell, Cell::hash> CellSet;
@@ -80,6 +80,7 @@ std::vector<CellSet> currentGeneration;
 std::vector<CellSet> nextGeneration;
 std::vector<DeadMap> deadCells;
 
+int getIndex(int x, int y, int z);
 void evolve();
 int getNeighbors(Cell cell);
 
@@ -90,52 +91,48 @@ inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells);
 
 int main(int argc, char* argv[]) {
 
-    int nrThreads = omp_get_num_procs();
-
-
     if (argc != ARG_SIZE) {
         std::cout << "Usage: life3d <filename> <nr of generations>" << std::endl;
         return -1;
     }
 
+    // Input reading
     std::string filename = argv[1];
-    nrGenerations = std::stoi(argv[2]);
+    int nrGenerations = std::stoi(argv[2]);
 
-    // Get number of cells
-    int nrCells = -1; // -1 to account for the initial line with the side size
-    std::string line;
-    std::ifstream myfile(filename);
-    while (std::getline(myfile, line)) {
-        ++nrCells;
-    }
 
     // Distribute cells to according index in currentGeneration
     std::ifstream infile(filename);
     infile >> size;
-    int x, y, z, lineNr = 1;
-    int allocationSize = nrCells / (nrThreads * CHUNK_SIZE), position = allocationSize;
+    int x, y, z;
 
-    while (infile >> x >> y >> z) {
-        // cell index in data structures definition
-        if(lineNr > position){
-            position = position + allocationSize;
-        }
-        lineNr++;
-        int index = (position / allocationSize) - 1;
+    // data structure initialization
+    int nrThreads = omp_get_num_procs();
 
-        // Cell definition and insertion at data structures
-        Cell cell(x, y, z);
-        if(currentGeneration.size() == index){
-            // We have to add to the vector a new unordered_set
-            CellSet cellSet;
-            cellSet.insert(cell);
-            currentGeneration.push_back(cellSet);
-        }else{
-            // We have to insert the cell at an already existent set item
-            currentGeneration.at((unsigned long) index).insert(cell);
-        }
+    for(int i = 0; i < nrThreads * CHUNK_SIZE; i++){
+        CellSet set;
+        currentGeneration.push_back(set);
     }
 
+
+    double nrInChargeX = (double) size / (double) (nrThreads * CHUNK_SIZE);
+    double nrInChargeY = (double) size / (double) CHUNK_SIZE;
+    while (infile >> x >> y >> z) {
+        // Cell definition and insertion at data structures
+        Cell cell(x, y, z);
+        int index = 0;
+        if(size < nrThreads * CHUNK_SIZE){
+            int indexX = (int) (x / nrInChargeX);
+            int indexY = (int) (y / nrInChargeY);
+            index = indexX + indexY;
+        }else{
+            int indexX = (x / (size / CHUNK_SIZE))* CHUNK_SIZE;
+            int indexY = (int) (y / nrInChargeY);
+            index = indexX + indexY;
+        }
+        // We have to insert the cell at an already existent set item
+        currentGeneration.at((unsigned long) index).insert(cell);
+    }
     /*
     for (int i = 0; i < nrGenerations; i++) {
         evolve();
