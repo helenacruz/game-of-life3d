@@ -5,10 +5,8 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <tuple>
-#include <omp.h>
 
 #define ARG_SIZE 3
-#define CHUNK_SIZE 4
 
 class Cell
 {
@@ -73,12 +71,9 @@ public:
 int size;
 int nrGenerations;
 
-// new data structures
-typedef std::unordered_set<Cell, Cell::hash> CellSet;
-typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
-std::vector<CellSet> currentGeneration;
-std::vector<CellSet> nextGeneration;
-std::vector<DeadMap> deadCells;
+std::unordered_set<Cell, Cell::hash> currentGeneration;
+std::unordered_set<Cell, Cell::hash> nextGeneration;
+std::unordered_map<Cell, int, Cell::hash> deadCells;
 
 void evolve();
 int getNeighbors(Cell cell);
@@ -90,9 +85,6 @@ inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells);
 
 int main(int argc, char* argv[]) {
 
-    int nrThreads = omp_get_num_procs();
-
-
     if (argc != ARG_SIZE) {
         std::cout << "Usage: life3d <filename> <nr of generations>" << std::endl;
         return -1;
@@ -101,54 +93,27 @@ int main(int argc, char* argv[]) {
     std::string filename = argv[1];
     nrGenerations = std::stoi(argv[2]);
 
-    // Get number of cells
-    int nrCells = -1; // -1 to account for the initial line with the side size
-    std::string line;
-    std::ifstream myfile(filename);
-    while (std::getline(myfile, line)) {
-        ++nrCells;
-    }
-
-    // Distribute cells to according index in currentGeneration
     std::ifstream infile(filename);
     infile >> size;
-    int x, y, z, lineNr = 1;
-    int allocationSize = nrCells / (nrThreads * CHUNK_SIZE), position = allocationSize;
+ 
+    int x, y, z;
 
     while (infile >> x >> y >> z) {
-        // cell index in data structures definition
-        if(lineNr > position){
-            position = position + allocationSize;
-        }
-        lineNr++;
-        int index = (position / allocationSize) - 1;
-
-        // Cell definition and insertion at data structures
         Cell cell(x, y, z);
-        if(currentGeneration.size() == index){
-            // We have to add to the vector a new unordered_set
-            CellSet cellSet;
-            cellSet.insert(cell);
-            currentGeneration.push_back(cellSet);
-        }else{
-            // We have to insert the cell at an already existent set item
-            currentGeneration.at((unsigned long) index).insert(cell);
-        }
+        currentGeneration.insert(cell);
     }
 
-    /*
     for (int i = 0; i < nrGenerations; i++) {
         evolve();
     }
 
     printResults();
-    */
+
     return 0;
 }
 
 void evolve() {
 
-    /*
     for (auto it = currentGeneration.begin(); it != currentGeneration.end(); ++it) {
         int neighbors = getNeighbors(*it);
         
@@ -167,7 +132,6 @@ void evolve() {
     currentGeneration = nextGeneration; // new generation is our current generation
     nextGeneration = {}; // clears new generation
     deadCells.clear(); // clears dead cells from previous generation
-     */
 }
 
 int getNeighbors(Cell cell) {
@@ -235,7 +199,6 @@ int getNeighbors(Cell cell) {
         cell6 = Cell(x, y, z + 1);
     }
 
-    /*
     if (currentGeneration.count(cell1) > 0) {
         nrNeighbors++;
         // std::cout << "cell1" << std::endl;
@@ -283,7 +246,7 @@ int getNeighbors(Cell cell) {
     else {
         deadCells[cell6] += 1;
         // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
-    } */
+    } 
 
     return nrNeighbors;
 }
@@ -291,14 +254,13 @@ int getNeighbors(Cell cell) {
 /* Aux functions for printing data */
 
 inline void printResults() {
-    /*
     std::set<Cell> lastGeneration(currentGeneration.begin(), currentGeneration.end());
 
     for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
         std::cout << *it << std::endl;
     }
 
-    std::cout << "size: " << lastGeneration.size() << std::endl;*/
+    std::cout << "size: " << lastGeneration.size() << std::endl;
 }
 
 inline void printCells(std::vector<Cell> &cells)
@@ -316,11 +278,10 @@ inline void printCells(std::unordered_set<Cell, Cell::hash> &cells)
 }
 
 inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells) {
-    /*
     for (auto it = deadCells.begin(); it != deadCells.end(); ++it) {
-        //std::cout << "cell: " << it->first << std::endl;
-        //std::cout << "nr: " << it->second << std::endl;
-    }*/
+        std::cout << "cell: " << it->first << std::endl;
+        std::cout << "nr: " << it->second << std::endl;
+    }
 }
 /*
  * Usar o schedule dynamic [,chunk]
