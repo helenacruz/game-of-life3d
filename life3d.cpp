@@ -133,38 +133,60 @@ int main(int argc, char* argv[]) {
         // We have to insert the cell at an already existent set item
         currentGeneration.at((unsigned long) index).insert(cell);
     }
-    /*
+
     for (int i = 0; i < nrGenerations; i++) {
         evolve();
     }
 
     printResults();
-    */
+
     return 0;
 }
 
 void evolve() {
 
-    /*
-    for (auto it = currentGeneration.begin(); it != currentGeneration.end(); ++it) {
-        int neighbors = getNeighbors(*it);
-        
-        if (neighbors >= 2 && neighbors <= 4) {
-            // with 2 to 4 neighbors the cell lives 
-            nextGeneration.insert(*it);
-        }
-    } 
+    #pragma omp parallel
+    {
+        // We will divide the current generation vector sets dynamically among various threads available
+        #pragma omp for schedule(dynamic, CHUNK_SIZE)
+        for (unsigned int i = 0; i < currentGeneration.size(); i++) {
+            // Each thread iterates through a set...
+            CellSet &set = currentGeneration.at(i);
+            for(auto it = set.begin(); it != set.end(); ++it){
 
-    for (auto it = deadCells.begin(); it != deadCells.end(); ++it) {
-        if (it->second == 2 || it->second == 3) {
-            nextGeneration.insert(it->first);
+                /* TODO: Get nr of neighbours and decide if stays alive or not
+                int neighbors = getNeighbors(*it);
+
+                 TODO: verify at which index of vector nextgeneration to add the cell accordingly to the rule previously used
+                if (neighbors >= 2 && neighbors <= 4) {
+                    // with 2 to 4 neighbors the cell lives
+                    nextGeneration.insert(*it);
+                }
+                 */
+            }
+        }
+
+        // We will also divide the dead cells map dynamically among various threads available
+        #pragma omp for schedule(dynamic, CHUNK_SIZE)
+        for (unsigned int i = 0; i < deadCells.size(); i++) {
+            // Each thread iterates through a map
+            DeadMap &map = deadCells.at(i);
+
+            // Iterate through dead cells counters and if validate condition add cell as an alive one
+            // to the next generation.
+            // TODO: verify at which index of vector nextgeneration to add the cell accordingly to the rule previously used
+            for(auto it = map.begin(); it!= map.end(); ++it){
+                if (it->second == 2 || it->second == 3) {
+                    //nextGeneration.insert(it->first);
+                }
+            }
         }
     }
 
     currentGeneration = nextGeneration; // new generation is our current generation
     nextGeneration = {}; // clears new generation
     deadCells.clear(); // clears dead cells from previous generation
-     */
+
 }
 
 int getNeighbors(Cell cell) {
@@ -232,7 +254,7 @@ int getNeighbors(Cell cell) {
         cell6 = Cell(x, y, z + 1);
     }
 
-    /*
+/*
     if (currentGeneration.count(cell1) > 0) {
         nrNeighbors++;
         // std::cout << "cell1" << std::endl;
@@ -280,22 +302,25 @@ int getNeighbors(Cell cell) {
     else {
         deadCells[cell6] += 1;
         // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
-    } */
-
+    }
+*/
     return nrNeighbors;
 }
 
 /* Aux functions for printing data */
 
 inline void printResults() {
-    /*
-    std::set<Cell> lastGeneration(currentGeneration.begin(), currentGeneration.end());
 
-    for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
-        std::cout << *it << std::endl;
+    unsigned int genSize = 0;
+    for(auto genIt = currentGeneration.begin(); genIt != currentGeneration.end(); ++genIt){
+        CellSet set = *genIt;
+        genSize += set.size();
+        for(auto setIt = set.begin(); setIt != set.end(); ++setIt){
+            std::cout << *setIt << std::endl;
+        }
     }
 
-    std::cout << "size: " << lastGeneration.size() << std::endl;*/
+    std::cout << "size: " << genSize << std::endl;
 }
 
 inline void printCells(std::vector<Cell> &cells)
