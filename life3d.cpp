@@ -285,8 +285,8 @@ inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells) {
 }
 /*
  * Usar o schedule dynamic [,chunk]
- * Temos de encontrar o numero optimo de chunks: analizar o size e o nº de threads para distribuir os calculos
- * Nº sets = nº chunks * nº threads
+ * Temos de encontrar o numero optimo de chunks: analizar o size e o nÂº de threads para distribuir os calculos
+ * NÂº sets = nÂº chunks * nÂº threads
  * Inicializar os sets
  * Criar um vector de unordered sets para definir quais os sets que cada thread deve tratar (buscar os sets de acordo com o indice do vector-pensar no indices)
  * 
