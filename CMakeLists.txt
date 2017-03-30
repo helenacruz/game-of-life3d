@@ -18,7 +18,7 @@ set(SOURCE_FILES
         tests/s50e5k.in
         tests/s5e50.10.out
         tests/s5e50.in
-        life3d.cpp
+        life3d-omp.cpp
         README.md)
 
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${OMP_LINK_FLAGSET}" )

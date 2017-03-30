@@ -71,7 +71,7 @@ public:
     };
 };
 
-int size;
+int size, nrThreads;
 
 // new data structures
 typedef std::unordered_set<Cell, Cell::hash> CellSet;
@@ -80,9 +80,10 @@ std::vector<CellSet> currentGeneration;
 std::vector<CellSet> nextGeneration;
 std::vector<DeadMap> deadCells;
 
+
 int getIndex(int x, int y, int z);
 void evolve();
-int getNeighbors(Cell cell);
+int getNeighbors(Cell cell, int i);
 
 inline void printResults();
 inline void printCells(std::vector<Cell> &cells);
@@ -107,7 +108,7 @@ int main(int argc, char* argv[]) {
     int x, y, z;
 
     // data structure initialization
-    int nrThreads = omp_get_num_procs();
+    nrThreads = omp_get_num_procs();
 
     for(int i = 0; i < nrThreads * CHUNK_SIZE; i++){
         CellSet set;
@@ -138,9 +139,25 @@ int main(int argc, char* argv[]) {
         evolve();
     }
 
-    printResults();
+    //printResults();
 
     return 0;
+}
+
+int getIndex(int x, int y, int z){
+    double nrInChargeX = (double) size / (double) (nrThreads * CHUNK_SIZE);
+    double nrInChargeY = (double) size / (double) CHUNK_SIZE;
+    int index = 0;
+    if(size < nrThreads * CHUNK_SIZE){
+        int indexX = (int) (x / nrInChargeX);
+        int indexY = (int) (y / nrInChargeY);
+        index = indexX + indexY;
+    }else{
+        int indexX = (x / (size / CHUNK_SIZE))* CHUNK_SIZE;
+        int indexY = (int) (y / nrInChargeY);
+        index = indexX + indexY;
+    }
+    return index;
 }
 
 void evolve() {
@@ -154,10 +171,11 @@ void evolve() {
             CellSet &set = currentGeneration.at(i);
             for(auto it = set.begin(); it != set.end(); ++it){
 
-                /* TODO: Get nr of neighbours and decide if stays alive or not
-                int neighbors = getNeighbors(*it);
-
-                 TODO: verify at which index of vector nextgeneration to add the cell accordingly to the rule previously used
+                // Get nr of neighbours and decide if stays alive or not
+                int neighbors = getNeighbors(*it, i);
+                std::cout << "Nr neighbors: " << neighbors << std::endl;
+                fflush(stdout);
+                 /*TODO: verify at which index of vector nextgeneration to add the cell accordingly to the rule previously used
                 if (neighbors >= 2 && neighbors <= 4) {
                     // with 2 to 4 neighbors the cell lives
                     nextGeneration.insert(*it);
@@ -189,7 +207,9 @@ void evolve() {
 
 }
 
-int getNeighbors(Cell cell) {
+int getNeighbors(Cell cell, int vectorIndex) {
+    bool cell1inside, cell2inside, cell3inside, cell4inside, cell5inside, cell6inside = false;
+    unsigned long cell1index, cell2index, cell3index, cell4index, cell5index, cell6index;
     int nrNeighbors = 0;
     int x = cell.getX();
     int y = cell.getY();
@@ -203,7 +223,7 @@ int getNeighbors(Cell cell) {
     Cell cell5;
     Cell cell6;
 
-    // x varies
+    // X Index limits correction
     if (x - 1 < 0) {
         xx = size - 1;
         cell1 = Cell(xx, y, z);
@@ -220,7 +240,7 @@ int getNeighbors(Cell cell) {
         cell2 = Cell(x + 1, y, z);
     }
 
-    // y varies
+    // y Index limits correction
     if (y - 1 < 0) {
         yy = size - 1;
         cell3 = Cell(x, yy, z);
@@ -237,7 +257,7 @@ int getNeighbors(Cell cell) {
         cell4 = Cell(x, y + 1, z);
     }
 
-    // z varies
+    // z Index limits correction
     if (z - 1 < 0) {
         zz = size - 1;
         cell5 = Cell(x, y, zz);
@@ -254,56 +274,92 @@ int getNeighbors(Cell cell) {
         cell6 = Cell(x, y, z + 1);
     }
 
-/*
-    if (currentGeneration.count(cell1) > 0) {
+    /*
+     * UNCOMMENT THIS FOR INDEX VERIFICATION
+    std::cout << "index-> " << vectorIndex << ": cell1: " << getIndex(cell1.getX(), cell1.getY(), cell1.getZ())
+            << ": cell1: " << getIndex(cell2.getX(), cell2.getY(), cell2.getZ())
+            << ": cell1: " << getIndex(cell3.getX(), cell3.getY(), cell3.getZ())
+            << ": cell1: " << getIndex(cell4.getX(), cell4.getY(), cell4.getZ())
+            << ": cell1: " << getIndex(cell5.getX(), cell5.getY(), cell5.getZ())
+            << ": cell1: " << getIndex(cell6.getX(), cell6.getY(), cell6.getZ()) << std::endl;
+
+    fflush(stdout);
+     */
+    cell1index = (unsigned long) getIndex(cell1.getX(), cell1.getY(), cell1.getZ() == vectorIndex);
+    cell2index = (unsigned long) getIndex(cell2.getX(), cell2.getY(), cell2.getZ() == vectorIndex);
+    cell3index = (unsigned long) getIndex(cell3.getX(), cell3.getY(), cell3.getZ() == vectorIndex);
+    cell4index = (unsigned long) getIndex(cell4.getX(), cell4.getY(), cell4.getZ() == vectorIndex);
+    cell5index = (unsigned long) getIndex(cell5.getX(), cell5.getY(), cell5.getZ() == vectorIndex);
+    cell6index = (unsigned long) getIndex(cell6.getX(), cell6.getY(), cell6.getZ() == vectorIndex);
+
+
+    // vector index verification
+    // FIXME: I think this booleans won't be needed
+    if(getIndex(cell1.getX(), cell1.getY(), cell1.getZ() == vectorIndex))
+        cell1inside = true;
+    if(getIndex(cell2.getX(), cell2.getY(), cell2.getZ() == vectorIndex))
+        cell2inside = true;
+    if(getIndex(cell3.getX(), cell3.getY(), cell3.getZ() == vectorIndex))
+        cell3inside = true;
+    if(getIndex(cell4.getX(), cell4.getY(), cell4.getZ() == vectorIndex))
+        cell4inside = true;
+    if(getIndex(cell5.getX(), cell5.getY(), cell5.getZ() == vectorIndex))
+        cell5inside = true;
+    if(getIndex(cell6.getX(), cell6.getY(), cell6.getZ() == vectorIndex))
+        cell6inside = true;
+
+    int nr;
+    if (currentGeneration.at(cell1index).count(cell1) > 0) {
         nrNeighbors++;
         // std::cout << "cell1" << std::endl;
     }
     else {
-        deadCells[cell1] += 1;
+        // TODO: Missing space allocation if cell is not present in deadCells.at(cellIndex)!!!
+        //deadCells.at(cell1index)[cell1] += 1;
         // std::cout << "dead cell1 neighbor: " << cell1 << std::endl;
     }
-    if (currentGeneration.count(cell2) > 0) {
+    if (currentGeneration.at(cell2index).count(cell2) > 0) {
         nrNeighbors++;
         // std::cout << "cell2" << std::endl;
     }
     else {
-        deadCells[cell2] += 1;
+        //deadCells.at(cell2index)[cell2] += 1;
         // std::cout << "dead cell2 neighbor: " << cell2 << std::endl;
     }
-    if (currentGeneration.count(cell3) > 0) {
-        nrNeighbors++;  
+    if (currentGeneration.at(cell3index).count(cell3) > 0) {
+        nrNeighbors++;
         // std::cout << "cell3" << std::endl;
     }
     else {
-        deadCells[cell3] += 1;
+        //nr = deadCells.at(cell3index)[cell1];
+        //deadCells.at(cell3index)[cell1] += 1;
         // std::cout << "dead cell3 neighbor: " << cell3 << std::endl;
     }
-    if (currentGeneration.count(cell4) > 0) {
+    if (currentGeneration.at(cell4index).count(cell4) > 0) {
         nrNeighbors++;
         // std::cout << "cell4" << std::endl;
     }
     else {
-        deadCells[cell4] += 1;
+        //deadCells.at(cell4index)[cell1] += 1;
         // std::cout << "dead cell4 neighbor: " << cell4 << std::endl;
     }
-    if (currentGeneration.count(cell5) > 0) {
+    if (currentGeneration.at(cell5index).count(cell5) > 0) {
         nrNeighbors++;
         // std::cout << "cell5" << std::endl;
     }
     else {
-        deadCells[cell5] += 1;
+        //deadCells.at(cell5index)[cell1] += 1;
         // std::cout << "dead cell5 neighbor: " << cell5 << std::endl;
     }
-    if (currentGeneration.count(cell6) > 0) {
+    if (currentGeneration.at(cell6index).count(cell6) > 0) {
         nrNeighbors++;
         // std::cout << "cell6" << std::endl;
     }
     else {
-        deadCells[cell6] += 1;
+        //deadCells.at(cell6index)[cell1] += 1;
         // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
     }
-*/
+
     return nrNeighbors;
 }
 
