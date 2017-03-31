@@ -115,7 +115,6 @@ int main(int argc, char* argv[]) {
         CellSet set;
         currentGeneration.push_back(set);
     }
-    //std::cout << "size " << nrThreads << std::endl;
     double nrInChargeX = (double) size / (double) (nrThreads * CHUNK_SIZE);
     double nrInChargeY = (double) size / (double) CHUNK_SIZE;
     while (infile >> x >> y >> z) {
@@ -133,19 +132,16 @@ int main(int argc, char* argv[]) {
         }
         // We have to insert the cell at an already existent set item
         currentGeneration.at((unsigned long) index).insert(cell);
-        //std::cout << "ELAPSED TIME: " << currentGeneration << std::endl;
     }
 
-    std::cout << "nrGenerations" << nrGenerations << std::endl;
     for (int i = 0; i < nrGenerations; i++) {;
-        std::cout << "generation " << i << std::endl;
         evolve();
     }
 
     double end = omp_get_wtime();
-    //printResults();
+    printResults();
 
-    std::cout << "ELAPSED TIME: " << (end - start) << std::endl;
+    //std::cout << "ELAPSED TIME: " << (end - start) << std::endl;
     fflush(stdout);
     return 0;
 }
@@ -171,7 +167,6 @@ int getIndex(Cell cell){
 }
 
 void evolve() {
-    //std::cout << "evolve: " << currentGeneration.size() << std::endl;
     // Allocate space for next generation
     for(int i = 0; i < nrThreads * CHUNK_SIZE; i++){
         CellSet set;
@@ -231,7 +226,6 @@ void evolve() {
             }
         }
     }
-    std::cout << "evolve" << std::endl;
     fflush(stdout);
     currentGeneration = nextGeneration; // new generation is our current generation
     nextGeneration.clear(); // clears new generation
