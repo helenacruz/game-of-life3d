@@ -247,62 +247,62 @@ int getNeighbors(Cell cell, int vectorIndex) {
     int z = cell.getZ();
     int xx, yy, zz;
 
-    Cell *cell1 = new Cell();
-    Cell *cell2 = new Cell();
-    Cell *cell3 = new Cell();
-    Cell *cell4 = new Cell();
-    Cell *cell5 = new Cell();
-    Cell *cell6 = new Cell();
+    Cell cell1;
+    Cell cell2;
+    Cell cell3;
+    Cell cell4;
+    Cell cell5;
+    Cell cell6;
 
     // X Index limits correction
     if (x - 1 < 0) {
         xx = size - 1;
-        *cell1 = Cell(xx, y, z);
+        cell1 = Cell(xx, y, z);
     }
     else {
-        *cell1 = Cell(x - 1, y, z);
+        cell1 = Cell(x - 1, y, z);
     }
 
     if (x + 1 >= size) {
         xx = 0;
-        *cell2 = Cell(xx, y, z);
+        cell2 = Cell(xx, y, z);
     }
     else {
-        *cell2 = Cell(x + 1, y, z);
+        cell2 = Cell(x + 1, y, z);
     }
 
     // y Index limits correction
     if (y - 1 < 0) {
         yy = size - 1;
-        *cell3 = Cell(x, yy, z);
+        cell3 = Cell(x, yy, z);
     }
     else {
-        *cell3 = Cell(x, y - 1, z);
+        cell3 = Cell(x, y - 1, z);
     }
 
     if (y + 1 >= size) {
         yy = 0;
-        *cell4 = Cell(x, yy, z);
+        cell4 = Cell(x, yy, z);
     }
     else {
-        *cell4 = Cell(x, y + 1, z);
+        cell4 = Cell(x, y + 1, z);
     }
 
     // z Index limits correction
     if (z - 1 < 0) {
         zz = size - 1;
-        *cell5 = Cell(x, y, zz);
+        cell5 = Cell(x, y, zz);
     }
     else {
-        *cell5 = Cell(x, y, z - 1);
+        cell5 = Cell(x, y, z - 1);
     }
 
     if (z + 1 >= size) {
         zz = 0;
-        *cell6 = Cell(x, y, zz);
+        cell6 = Cell(x, y, zz);
     }
     else {
-        *cell6 = Cell(x, y, z + 1);
+        cell6 = Cell(x, y, z + 1);
     }
 
     /*
@@ -316,71 +316,64 @@ int getNeighbors(Cell cell, int vectorIndex) {
 
     fflush(stdout);
      */
-    cell1index = (unsigned long) getIndex(*cell1);
-    cell2index = (unsigned long) getIndex(*cell2);
-    cell3index = (unsigned long) getIndex(*cell3);
-    cell4index = (unsigned long) getIndex(*cell4);
-    cell5index = (unsigned long) getIndex(*cell5);
-    cell6index = (unsigned long) getIndex(*cell6);
+    cell1index = (unsigned long) getIndex(cell1);
+    cell2index = (unsigned long) getIndex(cell2);
+    cell3index = (unsigned long) getIndex(cell3);
+    cell4index = (unsigned long) getIndex(cell4);
+    cell5index = (unsigned long) getIndex(cell5);
+    cell6index = (unsigned long) getIndex(cell6);
 
-    if (currentGeneration.at(cell1index).count(*cell1) > 0) {
+    if (currentGeneration.at(cell1index).count(cell1) > 0) {
         nrNeighbors++;
         // std::cout << "cell1" << std::endl;
     }
     else {
         // TODO: Missing space allocation if cell is not present in deadCells.at(cellIndex)!!!
-        deadCells.at(cell1index)[*cell1] += 1;
+        deadCells.at(cell1index)[cell1] += 1;
         // std::cout << "dead cell1 neighbor: " << cell1 << std::endl;
     }
-    if (currentGeneration.at(cell2index).count(*cell2) > 0) {
+    if (currentGeneration.at(cell2index).count(cell2) > 0) {
         nrNeighbors++;
         // std::cout << "cell2" << std::endl;
     }
     else {
-        deadCells.at(cell2index)[*cell2] += 1;
+        deadCells.at(cell2index)[cell2] += 1;
         // std::cout << "dead cell2 neighbor: " << cell2 << std::endl;
     }
-    if (currentGeneration.at(cell3index).count(*cell3) > 0) {
+    if (currentGeneration.at(cell3index).count(cell3) > 0) {
         nrNeighbors++;
         // std::cout << "cell3" << std::endl;
     }
     else {
         //nr = deadCells.at(cell3index)[cell1];
-        deadCells.at(cell3index)[*cell1] += 1;
+        deadCells.at(cell3index)[cell1] += 1;
         // std::cout << "dead cell3 neighbor: " << cell3 << std::endl;
     }
-    if (currentGeneration.at(cell4index).count(*cell4) > 0) {
+    if (currentGeneration.at(cell4index).count(cell4) > 0) {
         nrNeighbors++;
         // std::cout << "cell4" << std::endl;
     }
     else {
-        deadCells.at(cell4index)[*cell1] += 1;
+        deadCells.at(cell4index)[cell1] += 1;
         // std::cout << "dead cell4 neighbor: " << cell4 << std::endl;
     }
-    if (currentGeneration.at(cell5index).count(*cell5) > 0) {
+    if (currentGeneration.at(cell5index).count(cell5) > 0) {
         nrNeighbors++;
         // std::cout << "cell5" << std::endl;
     }
     else {
-        deadCells.at(cell5index)[*cell1] += 1;
+        deadCells.at(cell5index)[cell1] += 1;
         // std::cout << "dead cell5 neighbor: " << cell5 << std::endl;
     }
-    if (currentGeneration.at(cell6index).count(*cell6) > 0) {
+    if (currentGeneration.at(cell6index).count(cell6) > 0) {
         nrNeighbors++;
         // std::cout << "cell6" << std::endl;
     }
     else {
-        deadCells.at(cell6index)[*cell1] += 1;
+        deadCells.at(cell6index)[cell1] += 1;
         // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
     }
 
-
-    delete(cell1);
-    delete(cell2);
-    delete(cell3);
-    delete(cell4);
-    delete(cell5);
-    delete(cell6);
     return nrNeighbors;
 }
 
