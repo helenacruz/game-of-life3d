@@ -84,6 +84,7 @@ std::vector<DeadMap> deadCells;
 int getIndex(Cell cell);
 void evolve();
 int getNeighbors(Cell cell, int i);
+void writeDeadMap(unsigned long index, Cell cell);
 
 inline void printResults();
 inline void printCells(std::vector<Cell> &cells);
@@ -188,11 +189,8 @@ void evolve() {
 
                 // Get nr of neighbours and decide if stays alive or not
 
-                int neighbors;
-                #pragma omp critical (first)
-                {
-                    neighbors = getNeighbors(*it, i);
-                }
+                int neighbors = getNeighbors(*it, i);
+
 
 
                 if (neighbors >= 2 && neighbors <= 4) {
@@ -226,7 +224,6 @@ void evolve() {
             }
         }
     }
-    fflush(stdout);
     currentGeneration = nextGeneration; // new generation is our current generation
     nextGeneration.clear(); // clears new generation
     deadCells.clear(); // clears dead cells from previous generation
@@ -298,18 +295,7 @@ int getNeighbors(Cell cell, int vectorIndex) {
     else {
         cell6 = Cell(x, y, z + 1);
     }
-
-    /*
-     * UNCOMMENT THIS FOR INDEX VERIFICATION
-    std::cout << "index-> " << vectorIndex << ": cell1: " << getIndex(cell1.getX(), cell1.getY(), cell1.getZ())
-            << ": cell1: " << getIndex(cell2.getX(), cell2.getY(), cell2.getZ())
-            << ": cell1: " << getIndex(cell3.getX(), cell3.getY(), cell3.getZ())
-            << ": cell1: " << getIndex(cell4.getX(), cell4.getY(), cell4.getZ())
-            << ": cell1: " << getIndex(cell5.getX(), cell5.getY(), cell5.getZ())
-            << ": cell1: " << getIndex(cell6.getX(), cell6.getY(), cell6.getZ()) << std::endl;
-
-    fflush(stdout);
-     */
+    
     cell1index = (unsigned long) getIndex(cell1);
     cell2index = (unsigned long) getIndex(cell2);
     cell3index = (unsigned long) getIndex(cell3);
@@ -319,56 +305,50 @@ int getNeighbors(Cell cell, int vectorIndex) {
 
     if (currentGeneration.at(cell1index).count(cell1) > 0) {
         nrNeighbors++;
-        // std::cout << "cell1" << std::endl;
     }
     else {
-        deadCells.at(cell1index)[cell1] += 1;
-        // std::cout << "dead cell1 neighbor: " << cell1 << std::endl;
+        writeDeadMap(cell1index, cell1);
     }
     if (currentGeneration.at(cell2index).count(cell2) > 0) {
         nrNeighbors++;
-        // std::cout << "cell2" << std::endl;
     }
     else {
-        deadCells.at(cell2index)[cell2] += 1;
-        // std::cout << "dead cell2 neighbor: " << cell2 << std::endl;
+        writeDeadMap(cell2index, cell2);
     }
     if (currentGeneration.at(cell3index).count(cell3) > 0) {
         nrNeighbors++;
-        // std::cout << "cell3" << std::endl;
     }
     else {
-        //nr = deadCells.at(cell3index)[cell1];
-        deadCells.at(cell3index)[cell3] += 1;
-        // std::cout << "dead cell3 neighbor: " << cell3 << std::endl;
+        writeDeadMap(cell3index, cell3);
     }
     if (currentGeneration.at(cell4index).count(cell4) > 0) {
         nrNeighbors++;
-        // std::cout << "cell4" << std::endl;
     }
     else {
-        deadCells.at(cell4index)[cell4] += 1;
-        // std::cout << "dead cell4 neighbor: " << cell4 << std::endl;
+        writeDeadMap(cell4index, cell4);
     }
     if (currentGeneration.at(cell5index).count(cell5) > 0) {
         nrNeighbors++;
-        // std::cout << "cell5" << std::endl;
     }
     else {
-        deadCells.at(cell5index)[cell5] += 1;
-        // std::cout << "dead cell5 neighbor: " << cell5 << std::endl;
+        writeDeadMap(cell5index, cell5);
     }
     if (currentGeneration.at(cell6index).count(cell6) > 0) {
         nrNeighbors++;
-        // std::cout << "cell6" << std::endl;
     }
     else {
-        deadCells.at(cell6index)[cell6] += 1;
-        // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
+        writeDeadMap(cell6index, cell6);
     }
 
 
     return nrNeighbors;
+}
+
+void writeDeadMap(unsigned long index, Cell cell){
+    #pragma omp critical (first)
+    {
+        deadCells.at(index)[cell] += 1;
+    }
 }
 
 /* Aux functions for printing data */
