@@ -12,7 +12,7 @@ BOLD    = "\033[;1m"
 # commands
 
 serial_command = (['g++', '../life3d.cpp', '-o', 'life3d', '-std=c++11'])
-openmp_command = (['g++', '-fopenmp', '../life3d.cpp', '-o', 'life3d', '-std=c++11'])
+openmp_command = (['g++', '-fopenmp', '../life3d-omp.cpp', '-o', 'life3d-omp', '-std=c++11'])
 
 # get files
 
@@ -28,12 +28,12 @@ for file in dir_files:
 
 # run serial
 
-subprocess.run(serial_command)
+subprocess.run(openmp_command)
 
 for file in files:
     name = file[0] + '.' + file[1]
     with open(name + '.myout', 'w') as outfile:
-        run_command = (['./life3d', file[0] + '.in', file[1]]);
+        run_command = (['./life3d-omp', file[0] + '.in', file[1]]);
         print(BOLD + ' '.join(run_command) + RESET)
         start = time.time() 
         subprocess.run(run_command, stdout=outfile)

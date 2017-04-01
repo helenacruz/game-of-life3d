@@ -392,7 +392,7 @@ inline void printResults() {
         std::cout << *it << std::endl;
     }
 
-    std::cout << "size: " << lastGeneration.size() << std::endl;
+   // std::cout << "size: " << lastGeneration.size() << std::endl;
 }
 
 inline void printCells(std::vector<Cell> &cells)
