@@ -322,7 +322,6 @@ int getNeighbors(Cell cell, int vectorIndex) {
         // std::cout << "cell1" << std::endl;
     }
     else {
-        // TODO: Missing space allocation if cell is not present in deadCells.at(cellIndex)!!!
         deadCells.at(cell1index)[cell1] += 1;
         // std::cout << "dead cell1 neighbor: " << cell1 << std::endl;
     }
@@ -340,7 +339,7 @@ int getNeighbors(Cell cell, int vectorIndex) {
     }
     else {
         //nr = deadCells.at(cell3index)[cell1];
-        deadCells.at(cell3index)[cell1] += 1;
+        deadCells.at(cell3index)[cell3] += 1;
         // std::cout << "dead cell3 neighbor: " << cell3 << std::endl;
     }
     if (currentGeneration.at(cell4index).count(cell4) > 0) {
@@ -348,7 +347,7 @@ int getNeighbors(Cell cell, int vectorIndex) {
         // std::cout << "cell4" << std::endl;
     }
     else {
-        deadCells.at(cell4index)[cell1] += 1;
+        deadCells.at(cell4index)[cell4] += 1;
         // std::cout << "dead cell4 neighbor: " << cell4 << std::endl;
     }
     if (currentGeneration.at(cell5index).count(cell5) > 0) {
@@ -356,7 +355,7 @@ int getNeighbors(Cell cell, int vectorIndex) {
         // std::cout << "cell5" << std::endl;
     }
     else {
-        deadCells.at(cell5index)[cell1] += 1;
+        deadCells.at(cell5index)[cell5] += 1;
         // std::cout << "dead cell5 neighbor: " << cell5 << std::endl;
     }
     if (currentGeneration.at(cell6index).count(cell6) > 0) {
@@ -364,9 +363,10 @@ int getNeighbors(Cell cell, int vectorIndex) {
         // std::cout << "cell6" << std::endl;
     }
     else {
-        deadCells.at(cell6index)[cell1] += 1;
+        deadCells.at(cell6index)[cell6] += 1;
         // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
     }
+
 
     return nrNeighbors;
 }
@@ -374,17 +374,25 @@ int getNeighbors(Cell cell, int vectorIndex) {
 /* Aux functions for printing data */
 
 inline void printResults() {
+    std::set<Cell> lastGeneration;
+
+
+
 
     unsigned int genSize = 0;
     for(auto genIt = currentGeneration.begin(); genIt != currentGeneration.end(); ++genIt){
         CellSet set = *genIt;
         genSize += set.size();
         for(auto setIt = set.begin(); setIt != set.end(); ++setIt){
-            std::cout << *setIt << std::endl;
+            lastGeneration.insert(*setIt);
         }
     }
 
-    std::cout << "size: " << genSize << std::endl;
+    for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
+        std::cout << *it << std::endl;
+    }
+
+    std::cout << "size: " << lastGeneration.size() << std::endl;
 }
 
 inline void printCells(std::vector<Cell> &cells)
