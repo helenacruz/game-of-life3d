@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import time
 
@@ -26,27 +27,47 @@ files = []
 for file in dir_files:
     files += [str.split(file, '.')]
 
-# run serial
+def run_tests(exec_name):
+    for file in files:
+        name = file[0] + '.' + file[1]
+        with open(name + '.myout', 'w') as outfile:
+            run_command = ([exec_name, file[0] + '.in', file[1]]);
+            print(BOLD + ' '.join(run_command) + RESET)
+            start = time.time() 
+            subprocess.run(run_command, stdout=outfile)
+            end = time.time()
+            diff_command = (['diff', name + '.out', name + '.myout'])
+            result = subprocess.run(diff_command, stdout=subprocess.PIPE)
+            print(RESET + "Time passed: %.4f" % (end - start) + "s")
+            if result.stdout.decode() == '':
+                print(GREEN + "Test successful" + RESET + "\n")
+            else:
+                print(RED + "Test failed" + RESET + "\n")
 
-subprocess.run(openmp_command)
+if len(sys.argv) != 2:
+    print("Usage:")
+    print("To run serial version: python3 run_tests.py -serial")
+    print("To run OpenMP version: python3 run_tests.py -openmp")
+    print("To run MPI version: python3 run_tests.py -mpi")
 
-for file in files:
-    name = file[0] + '.' + file[1]
-    with open(name + '.myout', 'w') as outfile:
-        run_command = (['./life3d-omp', file[0] + '.in', file[1]]);
-        print(BOLD + ' '.join(run_command) + RESET)
-        start = time.time() 
-        subprocess.run(run_command, stdout=outfile)
-        end = time.time()
-        diff_command = (['diff', name + '.out', name + '.myout'])
-        result = subprocess.run(diff_command, stdout=subprocess.PIPE)
-        print(RESET + "Time passed: %.4f" % (end - start) + "s")
-        if result.stdout.decode() == '':
-            print(GREEN + "Test successful" + RESET)
-        else:
-            print(RED + "Test failed" + RESET)
+elif sys.argv[1] == '-serial':
+    print("Running serial version\n")
+    subprocess.run(serial_command)
+    run_tests('./life3d')
+    print("Done\n")
 
-# run openmp
+elif sys.argv[1] == '-openmp':
+    print("Running OpenMP version\n")
+    subprocess.run(openmp_command)
+    run_tests('./life3d-omp')
+    print("Done\n")
 
-# run mpi
+elif sys.argv[1] == '-mpi':
+    print("Running MPI version\n")
+    subprocess.run(mpi_command)
+    run_tests('./life3d-mpi')
+    print("Done\n")
+
+else:
+    print("Option not available, try -serial, -openmp or -mpi")
 

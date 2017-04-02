@@ -259,8 +259,6 @@ inline void printResults() {
     for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
         std::cout << *it << std::endl;
     }
-
-    std::cout << "size: " << lastGeneration.size() << std::endl;
 }
 
 inline void printCells(std::vector<Cell> &cells)
