@@ -9,7 +9,6 @@
 #include <cmath>
 
 #define ARG_SIZE 3
-#define CHUNK_SIZE 2
 
 class Cell
 {
@@ -71,7 +70,7 @@ public:
     };
 };
 
-int size, nrThreads;
+int size, nrThreads, CHUNK_SIZE;
 
 // new data structures
 typedef std::unordered_set<Cell, Cell::hash> CellSet;
@@ -110,40 +109,45 @@ int main(int argc, char* argv[]) {
     int x, y, z;
 
     // data structure initialization
-    nrThreads = omp_get_num_procs();
+
+    //const char *nrThreadsChar = getenv("OMP_NUM_THREADS");
+	//nrThreads = atoi(nrThreadsChar);
+
+
+    nrThreads = 2;
+    CHUNK_SIZE = 2;
 
     for(int i = 0; i < nrThreads * CHUNK_SIZE; i++){
         CellSet set;
         currentGeneration.push_back(set);
     }
+    
     double nrInChargeX = (double) size / (double) (nrThreads * CHUNK_SIZE);
     double nrInChargeY = (double) size / (double) CHUNK_SIZE;
     while (infile >> x >> y >> z) {
         // Cell definition and insertion at data structures
         Cell cell(x, y, z);
-        int index = 0;
+        int index = 0, indexX = 0;
+        int indexY = (int) (y / nrInChargeY);
         if(size < nrThreads * CHUNK_SIZE){
-            int indexX = (int) (x / nrInChargeX);
-            int indexY = (int) (y / nrInChargeY);
-            index = indexX + indexY;
+            indexX = (int) (x / nrInChargeX);
         }else{
-            int indexX = (x / (size / CHUNK_SIZE))* CHUNK_SIZE;
-            int indexY = (int) (y / nrInChargeY);
-            index = indexX + indexY;
+            indexX = (x / (size / CHUNK_SIZE))* CHUNK_SIZE;
         }
+
+        index = (indexX + indexY) %((nrThreads * CHUNK_SIZE));
         // We have to insert the cell at an already existent set item
         currentGeneration.at((unsigned long) index).insert(cell);
     }
 
+    
     for (int i = 0; i < nrGenerations; i++) {;
         evolve();
     }
 
     double end = omp_get_wtime();
     printResults();
-
-    //std::cout << "ELAPSED TIME: " << (end - start) << std::endl;
-    fflush(stdout);
+    
     return 0;
 }
 
@@ -356,9 +360,6 @@ void writeDeadMap(unsigned long index, Cell cell){
 inline void printResults() {
     std::set<Cell> lastGeneration;
 
-
-
-
     unsigned int genSize = 0;
     for(auto genIt = currentGeneration.begin(); genIt != currentGeneration.end(); ++genIt){
         CellSet set = *genIt;
@@ -396,17 +397,3 @@ inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells) {
         //std::cout << "nr: " << it->second << std::endl;
     }*/
 }
-/*
- * Usar o schedule dynamic [,chunk]
- * Temos de encontrar o numero optimo de chunks: analizar o size e o nº de threads para distribuir os calculos
- * Nº sets = nº chunks * nº threads
- * Inicializar os sets
- * Criar um vector de unordered sets para definir quais os sets que cada thread deve tratar (buscar os sets de acordo com o indice do vector-pensar no indices)
- * 
- * Na ultima generation, juntar todos os unordered_sets criados previamente num set ordenado (para devolver o resultado ordenado)
- * 
- * Escrever codigo
- * Teclar codigo
- * Codar
- * Pensar
- */
