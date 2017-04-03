@@ -201,51 +201,39 @@ int getNeighbors(Cell cell) {
 
     if (currentGeneration.count(cell1) > 0) {
         nrNeighbors++;
-        // std::cout << "cell1" << std::endl;
     }
     else {
         deadCells[cell1] += 1;
-        // std::cout << "dead cell1 neighbor: " << cell1 << std::endl;
     }
     if (currentGeneration.count(cell2) > 0) {
         nrNeighbors++;
-        // std::cout << "cell2" << std::endl;
     }
     else {
         deadCells[cell2] += 1;
-        // std::cout << "dead cell2 neighbor: " << cell2 << std::endl;
     }
     if (currentGeneration.count(cell3) > 0) {
         nrNeighbors++;  
-        // std::cout << "cell3" << std::endl;
     }
     else {
         deadCells[cell3] += 1;
-        // std::cout << "dead cell3 neighbor: " << cell3 << std::endl;
     }
     if (currentGeneration.count(cell4) > 0) {
         nrNeighbors++;
-        // std::cout << "cell4" << std::endl;
     }
     else {
         deadCells[cell4] += 1;
-        // std::cout << "dead cell4 neighbor: " << cell4 << std::endl;
     }
     if (currentGeneration.count(cell5) > 0) {
         nrNeighbors++;
-        // std::cout << "cell5" << std::endl;
     }
     else {
         deadCells[cell5] += 1;
-        // std::cout << "dead cell5 neighbor: " << cell5 << std::endl;
     }
     if (currentGeneration.count(cell6) > 0) {
         nrNeighbors++;
-        // std::cout << "cell6" << std::endl;
     }
     else {
         deadCells[cell6] += 1;
-        // std::cout << "dead cell6 neighbor: " << cell6 << std::endl;
     } 
 
     return nrNeighbors;
@@ -261,37 +249,3 @@ inline void printResults() {
     }
 }
 
-inline void printCells(std::vector<Cell> &cells)
-{
-    for (auto it = cells.begin(); it != cells.end(); ++it) {
-        std::cout << *it;
-    }
-}
-
-inline void printCells(std::unordered_set<Cell, Cell::hash> &cells)
-{
-    for (auto it = cells.begin(); it != cells.end(); ++it) {
-        std::cout << *it;
-    }
-}
-
-inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells) {
-    for (auto it = deadCells.begin(); it != deadCells.end(); ++it) {
-        std::cout << "cell: " << it->first << std::endl;
-        std::cout << "nr: " << it->second << std::endl;
-    }
-}
-/*
- * Usar o schedule dynamic [,chunk]
- * Temos de encontrar o numero optimo de chunks: analizar o size e o nº de threads para distribuir os calculos
- * Nº sets = nº chunks * nº threads
- * Inicializar os sets
- * Criar um vector de unordered sets para definir quais os sets que cada thread deve tratar (buscar os sets de acordo com o indice do vector-pensar no indices)
- * 
- * Na ultima generation, juntar todos os unordered_sets criados previamente num set ordenado (para devolver o resultado ordenado)
- * 
- * Escrever codigo
- * Teclar codigo
- * Codar
- * Pensar
- */

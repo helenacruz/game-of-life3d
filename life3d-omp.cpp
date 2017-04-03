@@ -360,40 +360,12 @@ void writeDeadMap(unsigned long index, Cell cell){
 inline void printResults() {
     std::set<Cell> lastGeneration;
 
-    unsigned int genSize = 0;
-    for(auto genIt = currentGeneration.begin(); genIt != currentGeneration.end(); ++genIt){
-        CellSet set = *genIt;
-        genSize += set.size();
-        for(auto setIt = set.begin(); setIt != set.end(); ++setIt){
-            lastGeneration.insert(*setIt);
-        }
+    for (auto gen = currentGeneration.begin(); gen != currentGeneration.end(); ++gen) {
+        lastGeneration.insert((*gen).begin(), (*gen).end());
     }
 
     for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
         std::cout << *it << std::endl;
     }
-
-   // std::cout << "size: " << lastGeneration.size() << std::endl;
 }
 
-inline void printCells(std::vector<Cell> &cells)
-{
-    for (auto it = cells.begin(); it != cells.end(); ++it) {
-        std::cout << *it;
-    }
-}
-
-inline void printCells(std::unordered_set<Cell, Cell::hash> &cells)
-{
-    for (auto it = cells.begin(); it != cells.end(); ++it) {
-        std::cout << *it;
-    }
-}
-
-inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells) {
-    /*
-    for (auto it = deadCells.begin(); it != deadCells.end(); ++it) {
-        //std::cout << "cell: " << it->first << std::endl;
-        //std::cout << "nr: " << it->second << std::endl;
-    }*/
-}
