@@ -1,0 +1,157 @@
+\documentclass[11pt,english]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{babel}
+\usepackage{multirow}
+\usepackage[margin=0.8in]{geometry}
+
+\author{
+\begin{tabular}{c}
+    Gonçalo Gaspar \\
+    58803
+\end{tabular}
+    \and
+\begin{tabular}{c}
+    Yuliya Plotka \\ 
+    76467
+\end{tabular}
+    \and
+\begin{tabular}{c}
+    Helena Cruz \\ 
+    78190
+\end{tabular}
+\vspace{0.01cm}
+}
+
+\title{
+    \vspace{-2cm}
+    \large Instituto Superior Técnico \\
+    \Large Parallel and Distributed Computing \\
+    \medbreak
+    \LARGE  Game of Life 3D
+}
+
+\date{\vspace{-5ex}}
+
+\begin{document}
+
+\maketitle
+
+% the approach used for parallelization
+% what decomposition was used
+% what were the synchronization concerns and why
+% how was load balancing addressed
+% what are the performance results and are they what expected
+
+\section{Serial version}
+
+The language chosen for the implementation of this project was C++, because of 
+its data structures.
+The approach for the implementation of the serial version was very simple. The 
+idea was to basically store all the initial cells in a data structure 
+corresponding to the initial generation and then start evolving, using only two
+data structures - current and next generation. It was also used another data 
+structure for optimizing the algorithm. 
+Cells were represented as a class with three integer attributes: \texttt{x}, 
+\texttt{y} and \texttt{z}. 
+
+\subsection{Data structures}
+
+The data structures used in this project were:
+
+\begin{itemize}
+    \item \texttt{unordered\_set}
+    \item \texttt{unordered\_map}
+\end{itemize}
+
+\begin{table}[]
+\centering
+\begin{tabular}{|c|c|c|c|c|c|l|}
+\hline
+\multirow{2}{*}{}          & \multicolumn{2}{c|}{\texttt{insert}}   & \multicolumn{2}{c|}{\texttt{find}}           & \multicolumn{2}{c|}{\texttt{count}}  \\ \cline{2-7} 
+                           & average case        & worst case       & average case  & worst case  & average case   & worst case \\ \hline
+\texttt{unordered\_set}    & O(1)                & O(n)             & O(1)          & O(n)        & O(1)           & O(n)       \\ \hline
+\texttt{ordered\_set}      & \multicolumn{2}{c|}{O(nlog(size + n))} & \multicolumn{2}{c|}{log(N)} & \multicolumn{2}{c|}{log(N)} \\ \hline
+\end{tabular}
+\caption{\texttt{unordered\_set} vs. \texttt{ordered\_set}}
+\label{table:unordered_vs_ordered}
+\end{table}
+
+Cells are unique in the generation, meaning that it's only possible to have one
+cell with a set of coordinates \texttt{(x, y, z)}. For this reason, the best 
+option to store cells was a \texttt{set}. The option of choosing the 
+\texttt{unordered\_set} instead of the \texttt{ordered\_set} was easy: the need 
+for ordering cells was only in the end of all the computation, when printing 
+the results (\ref{table:unordered_vs_ordered}).  
+
+Even though \texttt{ordered\_set} has better performance when compared to the 
+worst case of the \texttt{unordered\_set}, the amount of data and a good 
+hashing function proved it to be worse. The same happened with the 
+\texttt{unordered\_map}, which purpose is going to be explained in the next 
+section.
+
+\subsection{Serial algorithm}
+
+The computation of the next generation is made by iterating over the each cell 
+of the current generation. For each cell, we calculate its number of neighbors.
+The number of neighbors is calculated by generating the 6 neighbor cells and 
+then seeing if they're present in the set. If so, then it's a neighbor. If not, 
+it's a dead cell.
+If the number of neighbors is between 2 and 4, inclusive, than it will survive 
+into the next generation - we just add it to the set corresponding to the next 
+generation. If the number of neighbors is less than 2 or bigger than 4, than 
+the cell dies and we do nothing. 
+
+To optimize the algorithm when it comes to a dead cell becoming a live one, 
+instead of brute forcing (for each possible dead cell calculate the number of 
+neighbors), another strategy was adopted. 
+
+It's trivial to realize than any dead cell that is going to become a live one 
+in the next generation has neighbors. Taking this into account, when calculating 
+the number of neighbors of a live cell, if the cell is not a neighbor than it's
+dead. That cell is added to the \texttt{unordered\_map} where 
+\texttt{(key, value)} are represented by \texttt{(cell, number of neighbors)}. 
+
+Then just by iterating this map of dead cells it's very easy to decide its 
+future: if its number of live neighbors is 2 or 3, it is added to the set 
+corresponding to the next generation.
+
+\section{Parallel version}
+
+Even though the strategy used in the serial version worked perfectly, it was 
+not the ideal one for parallelizing the algorithm. 
+
+\subsection{Synchronization concerns}
+
+The problems with parallel computing are generally related to operations that 
+need to be executed inside critical sections - delaying the whole program - and 
+to barries in the synchronization - waiting for all threads to finish. 
+
+The straightforward solution to parallelize our algorithm would be to 
+parallelize the analysis of each cell (the computation of its neighbors and 
+deciding if its going to live or die). However, there are a few issues with 
+this:
+
+\begin{itemize}
+    \item{The insertion of cells to the next generation set must be done 
+        inside a critical zone, by one thread at a time.}
+    \item{The insertion of dead cells to the map of dead cells must also be 
+        done inside a critical zone.}
+\end{itemize}
+
+This would introduce a lot of overhead in the computation. For this reason, a 
+few adaptations were made to the algorithm and to the data structures.
+
+\subsection{Parallel algorithm}
+
+Parallel algorithm goes here.
+
+\subsection{Load balancing}
+
+Load balancing goes here.
+
+\section{Results}
+
+Results go here.
+
+\end{document}

@@ -41,3 +41,7 @@ cmake-build-debug/*
 
 # files without extension
 !*.*
+
+# latex files
+*.log
+*.aux
