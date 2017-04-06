@@ -39,10 +39,11 @@ def run_tests(exec_name):
             diff_command = (['diff', name + '.out', name + '.myout'])
             result = subprocess.run(diff_command, stdout=subprocess.PIPE)
             print(RESET + "Time passed: %.4f" % (end - start) + "s")
-            if result.stdout.decode() == '':
-                print(GREEN + "Test successful" + RESET + "\n")
-            else:
-                print(RED + "Test failed" + RESET + "\n")
+            print(result.stdout.decode())
+	    #if result.stdout.decode() == '':
+            #    print(GREEN + "Test successful" + RESET + "\n")
+            #else:
+            #    print(RED + "Test failed" + RESET + "\n")
 
 if len(sys.argv) != 2:
     print("Usage:")

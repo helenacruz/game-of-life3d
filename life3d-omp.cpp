@@ -5,10 +5,14 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <tuple>
+#include <utility>
 #include <omp.h>
-#include <cmath>
 
 #define ARG_SIZE 3
+#define NR_SETS 32
+#define CHUNK 4 // 4 sets per thread each time
+
+inline int generateIndex(int x, int y, int z);
 
 class Cell
 {
@@ -17,6 +21,7 @@ private:
     int x;
     int y;
     int z;
+    int index;
 
 public:
 
@@ -25,7 +30,7 @@ public:
     }
 
     Cell(int x, int y, int z) : x(x), y(y), z(z) {
-
+        index = generateIndex(x, y, z);
     }
 
     inline int getX() const {
@@ -38,6 +43,10 @@ public:
 
     inline int getZ() const {
         return z;
+    }
+
+    inline int getIndex() const {
+        return index;
     }
 
     inline bool operator!=(Cell const &cell) const { 
@@ -70,25 +79,25 @@ public:
     };
 };
 
-int size, nrThreads, CHUNK_SIZE;
+int size;
+int index = 0;
 
 // new data structures
 typedef std::unordered_set<Cell, Cell::hash> CellSet;
 typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
-std::vector<CellSet> currentGeneration;
-std::vector<CellSet> nextGeneration;
-std::vector<DeadMap> deadCells;
 
+std::vector<CellSet> currentGeneration(NR_SETS);
+std::vector<CellSet> nextGeneration(NR_SETS);
+std::vector<DeadMap> deadCells(NR_SETS);
 
-int getIndex(Cell cell);
 void evolve();
 int getNeighbors(Cell cell, int i);
-void writeDeadMap(unsigned long index, Cell cell);
+void insertNextGeneration(Cell cell);
+void insertDeadCell(Cell cell);
 
+inline void initializeVector(std::vector<CellSet> &sets);
+inline void initializeMap(std::vector<DeadMap> &maps);
 inline void printResults();
-inline void printCells(std::vector<Cell> &cells);
-inline void printCells(std::unordered_set<Cell, Cell::hash> &cells);
-inline void printCells(std::unordered_map<Cell, int, Cell::hash> &cells);
 
 int main(int argc, char* argv[]) {
 
@@ -98,144 +107,83 @@ int main(int argc, char* argv[]) {
     }
 
     double start = omp_get_wtime();
-    // Input reading
+    
     std::string filename = argv[1];
     int nrGenerations = std::stoi(argv[2]);
 
-
-    // Distribute cells to according index in currentGeneration
     std::ifstream infile(filename);
     infile >> size;
     int x, y, z;
 
-    // data structure initialization
-
-    //const char *nrThreadsChar = getenv("OMP_NUM_THREADS");
-	//nrThreads = atoi(nrThreadsChar);
-
-
-    nrThreads = 2;
-    CHUNK_SIZE = 2;
-
-    for(int i = 0; i < nrThreads * CHUNK_SIZE; i++){
-        CellSet set;
-        currentGeneration.push_back(set);
-    }
-    
-    double nrInChargeX = (double) size / (double) (nrThreads * CHUNK_SIZE);
-    double nrInChargeY = (double) size / (double) CHUNK_SIZE;
     while (infile >> x >> y >> z) {
-        // Cell definition and insertion at data structures
         Cell cell(x, y, z);
-        int index = 0, indexX = 0;
-        int indexY = (int) (y / nrInChargeY);
-        if(size < nrThreads * CHUNK_SIZE){
-            indexX = (int) (x / nrInChargeX);
-        }else{
-            indexX = (x / (size / CHUNK_SIZE))* CHUNK_SIZE;
-        }
-
-        index = (indexX + indexY) %((nrThreads * CHUNK_SIZE));
-        // We have to insert the cell at an already existent set item
-        currentGeneration.at((unsigned long) index).insert(cell);
+        currentGeneration[cell.getIndex()].insert(cell);
     }
 
-    
-    for (int i = 0; i < nrGenerations; i++) {;
+    for (int i = 0; i < nrGenerations; i++) {
         evolve();
     }
+    
+    printResults();
 
     double end = omp_get_wtime();
-    printResults();
-    
+    std::cout << "Time: " << (end - start) << std::endl;
+
     return 0;
 }
 
-int getIndex(Cell cell){
-    int x = cell.getX();
-    int y = cell.getY();
-    int z = cell.getZ();
-
-    double nrInChargeX = (double) size / (double) (nrThreads * CHUNK_SIZE);
-    double nrInChargeY = (double) size / (double) CHUNK_SIZE;
-    int index = 0;
-    if(size < nrThreads * CHUNK_SIZE){
-        int indexX = (int) (x / nrInChargeX);
-        int indexY = (int) (y / nrInChargeY);
-        index = indexX + indexY;
-    }else{
-        int indexX = (x / (size / CHUNK_SIZE))* CHUNK_SIZE;
-        int indexY = (int) (y / nrInChargeY);
-        index = indexX + indexY;
+inline void initializeMap(std::vector<DeadMap> &maps) {
+    for (int i = 0; i < NR_SETS; i++) {
+        DeadMap map;
+        maps[i] = map;
     }
-    return index;
+}
+
+inline int generateIndex(int x, int y, int z) {
+    return ((51 + std::hash<int>()(x)) *
+            (51 + std::hash<int>()(y)) *
+            (51 + std::hash<int>()(z))) % NR_SETS;
 }
 
 void evolve() {
-    // Allocate space for next generation
-    for(int i = 0; i < nrThreads * CHUNK_SIZE; i++){
-        CellSet set;
-        nextGeneration.push_back(set);
-
-        DeadMap deadMap;
-        deadCells.push_back(deadMap);
-    }
-
-
     #pragma omp parallel
     {
         // We will divide the current generation vector sets dynamically among various threads available
-        #pragma omp for schedule(dynamic, CHUNK_SIZE)
-        for (unsigned int i = 0; i < currentGeneration.size(); i++) {
+        #pragma omp for schedule(dynamic, CHUNK)
+        for (int i = 0; i < NR_SETS; i++) {
             // Each thread iterates through a set...
-            CellSet &set = currentGeneration.at(i);
-            for(auto it = set.begin(); it != set.end(); ++it){
-
-                // Get nr of neighbours and decide if stays alive or not
-
+            CellSet &set = currentGeneration[i];
+            for (auto it = set.begin(); it != set.end(); ++it){
                 int neighbors = getNeighbors(*it, i);
-
-
-
                 if (neighbors >= 2 && neighbors <= 4) {
                     // with 2 to 4 neighbors the cell lives
-                    #pragma omp critical (second)
-                    {
-                        nextGeneration.at((unsigned long) getIndex(*it)).insert(*it);
-                    };
-
+                    insertNextGeneration(*it);
                 }
             }
         }
 
         // We will also divide the dead cells map dynamically among various threads available
-        #pragma omp for schedule(dynamic, CHUNK_SIZE)
-        for (unsigned int i = 0; i < deadCells.size(); i++) {
+        #pragma omp for schedule(dynamic, CHUNK)
+        for (int i = 0; i < NR_SETS; i++) {
             // Each thread iterates through a map
-            DeadMap &map = deadCells.at(i);
+            DeadMap &map = deadCells[i];
 
-            // Iterate through dead cells counters and if validate condition add cell as an alive one
-            // to the next generation.
-            // TODO: verify at which index of vector nextgeneration to add the cell accordingly to the rule previously used
-            for(auto it = map.begin(); it!= map.end(); ++it){
+            for (auto it = map.begin(); it != map.end(); ++it){
                 if (it->second == 2 || it->second == 3) {
-                    #pragma omp critical (third)
-                    {
-                        nextGeneration.at((unsigned long) getIndex(it->first)).insert(it->first);
-                    };
-
+                    insertNextGeneration(it->first);
                 }
             }
         }
     }
-    currentGeneration = nextGeneration; // new generation is our current generation
-    nextGeneration.clear(); // clears new generation
-    deadCells.clear(); // clears dead cells from previous generation
 
+    currentGeneration = std::move(nextGeneration); // new generation is our current generation
+    nextGeneration = std::vector<CellSet>(NR_SETS);
+    for (int i = 0; i < NR_SETS; i++) {
+        initializeMap(deadCells); 
+    }
 }
 
 int getNeighbors(Cell cell, int vectorIndex) {
-    unsigned long cell1index, cell2index, cell3index, cell4index, cell5index, cell6index;
     int nrNeighbors = 0;
     int x = cell.getX();
     int y = cell.getY();
@@ -249,7 +197,6 @@ int getNeighbors(Cell cell, int vectorIndex) {
     Cell cell5;
     Cell cell6;
 
-    // X Index limits correction
     if (x - 1 < 0) {
         xx = size - 1;
         cell1 = Cell(xx, y, z);
@@ -266,7 +213,6 @@ int getNeighbors(Cell cell, int vectorIndex) {
         cell2 = Cell(x + 1, y, z);
     }
 
-    // y Index limits correction
     if (y - 1 < 0) {
         yy = size - 1;
         cell3 = Cell(x, yy, z);
@@ -283,7 +229,6 @@ int getNeighbors(Cell cell, int vectorIndex) {
         cell4 = Cell(x, y + 1, z);
     }
 
-    // z Index limits correction
     if (z - 1 < 0) {
         zz = size - 1;
         cell5 = Cell(x, y, zz);
@@ -300,58 +245,442 @@ int getNeighbors(Cell cell, int vectorIndex) {
         cell6 = Cell(x, y, z + 1);
     }
     
-    cell1index = (unsigned long) getIndex(cell1);
-    cell2index = (unsigned long) getIndex(cell2);
-    cell3index = (unsigned long) getIndex(cell3);
-    cell4index = (unsigned long) getIndex(cell4);
-    cell5index = (unsigned long) getIndex(cell5);
-    cell6index = (unsigned long) getIndex(cell6);
-
-    if (currentGeneration.at(cell1index).count(cell1) > 0) {
+    if (currentGeneration[cell1.getIndex()].count(cell1) > 0) {
         nrNeighbors++;
     }
     else {
-        writeDeadMap(cell1index, cell1);
+        insertDeadCell(cell1);
     }
-    if (currentGeneration.at(cell2index).count(cell2) > 0) {
+    
+    if (currentGeneration[cell2.getIndex()].count(cell2) > 0) {
         nrNeighbors++;
     }
     else {
-        writeDeadMap(cell2index, cell2);
-    }
-    if (currentGeneration.at(cell3index).count(cell3) > 0) {
-        nrNeighbors++;
-    }
-    else {
-        writeDeadMap(cell3index, cell3);
-    }
-    if (currentGeneration.at(cell4index).count(cell4) > 0) {
-        nrNeighbors++;
-    }
-    else {
-        writeDeadMap(cell4index, cell4);
-    }
-    if (currentGeneration.at(cell5index).count(cell5) > 0) {
-        nrNeighbors++;
-    }
-    else {
-        writeDeadMap(cell5index, cell5);
-    }
-    if (currentGeneration.at(cell6index).count(cell6) > 0) {
-        nrNeighbors++;
-    }
-    else {
-        writeDeadMap(cell6index, cell6);
+        insertDeadCell(cell2);
     }
 
+    if (currentGeneration[cell3.getIndex()].count(cell3) > 0) {
+        nrNeighbors++;
+    }
+    else {
+        insertDeadCell(cell3);
+    }
+
+    if (currentGeneration[cell4.getIndex()].count(cell4) > 0) {
+        nrNeighbors++;
+    }
+    else {
+        insertDeadCell(cell4);
+    }
+
+    if (currentGeneration[cell5.getIndex()].count(cell5) > 0) {
+        nrNeighbors++;
+    }
+    else {
+        insertDeadCell(cell5);
+    }
+
+    if (currentGeneration[cell6.getIndex()].count(cell6) > 0) {
+        nrNeighbors++;
+    }
+    else {
+        insertDeadCell(cell6);
+    }
 
     return nrNeighbors;
 }
 
-void writeDeadMap(unsigned long index, Cell cell){
-    #pragma omp critical (first)
-    {
-        deadCells.at(index)[cell] += 1;
+void insertNextGeneration(Cell cell) {
+    int index = cell.getIndex();
+    
+    if (index == 0) {
+        #pragma omp critical (nextGeneration_0)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 1) {
+        #pragma omp critical (nextGeneration_1)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 2) {
+        #pragma omp critical (nextGeneration_2)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 3) {
+        #pragma omp critical (nextGeneration_3)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 4) {
+        #pragma omp critical (nextGeneration_4)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 5) {
+        #pragma omp critical (nextGeneration_5)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    if (index == 6) {
+        #pragma omp critical (nextGeneration_6)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 7) {
+        #pragma omp critical (nextGeneration_7)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 8) {
+        #pragma omp critical (nextGeneration_8)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 9) {
+        #pragma omp critical (nextGeneration_9)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 10) {
+        #pragma omp critical (nextGeneration_10)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 11) {
+        #pragma omp critical (nextGeneration_11)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 12) {
+        #pragma omp critical (nextGeneration_12)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 13) {
+        #pragma omp critical (nextGeneration_13)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 14) {
+        #pragma omp critical (nextGeneration_14)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 15) {
+        #pragma omp critical (nextGeneration_15)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 16) {
+        #pragma omp critical (nextGeneration_16)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 17) {
+        #pragma omp critical (nextGeneration_17)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 18) {
+        #pragma omp critical (nextGeneration_18)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 19) {
+        #pragma omp critical (nextGeneration_19)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 20) {
+        #pragma omp critical (nextGeneration_20)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 21) {
+        #pragma omp critical (nextGeneration_21)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 22) {
+        #pragma omp critical (nextGeneration_22)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 23) {
+        #pragma omp critical (nextGeneration_23)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 24) {
+        #pragma omp critical (nextGeneration_24)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 25) {
+        #pragma omp critical (nextGeneration_25)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 26) {
+        #pragma omp critical (nextGeneration_26)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 27) {
+        #pragma omp critical (nextGeneration_27)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 28) {
+        #pragma omp critical (nextGeneration_28)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 29) {
+        #pragma omp critical (nextGeneration_29)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 30) {
+        #pragma omp critical (nextGeneration_30)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+    else if (index == 31) {
+        #pragma omp critical (nextGeneration_31)
+        {
+            nextGeneration[index].insert(cell);
+        }
+    }
+}
+
+void insertDeadCell(Cell cell) {
+    int index = cell.getIndex();
+    
+    if (index == 0) {
+        #pragma omp critical (deadCells_0)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 1) {
+        #pragma omp critical (deadCells_1)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 2) {
+        #pragma omp critical (deadCells_2)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 3) {
+        #pragma omp critical (deadCells_3)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 4) {
+        #pragma omp critical (deadCells_4)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 5) {
+        #pragma omp critical (deadCells_5)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    if (index == 6) {
+        #pragma omp critical (deadCells_6)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 7) {
+        #pragma omp critical (deadCells_7)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 8) {
+        #pragma omp critical (deadCells_8)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 9) {
+        #pragma omp critical (deadCells_9)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 10) {
+        #pragma omp critical (deadCells_10)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 11) {
+        #pragma omp critical (deadCells_11)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 12) {
+        #pragma omp critical (deadCells_12)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 13) {
+        #pragma omp critical (deadCells_13)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 14) {
+        #pragma omp critical (deadCells_14)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 15) {
+        #pragma omp critical (deadCells_15)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 16) {
+        #pragma omp critical (deadCells_16)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 17) {
+        #pragma omp critical (deadCells_17)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 18) {
+        #pragma omp critical (deadCells_18)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 19) {
+        #pragma omp critical (deadCells_19)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 20) {
+        #pragma omp critical (deadCells_20)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 21) {
+        #pragma omp critical (deadCells_21)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 22) {
+        #pragma omp critical (deadCells_22)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 23) {
+        #pragma omp critical (deadCells_23)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 24) {
+        #pragma omp critical (deadCells_24)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 25) {
+        #pragma omp critical (deadCells_25)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 26) {
+        #pragma omp critical (deadCells_26)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 27) {
+        #pragma omp critical (deadCells_27)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 28) {
+        #pragma omp critical (deadCells_28)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 29) {
+        #pragma omp critical (deadCells_29)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 30) {
+        #pragma omp critical (deadCells_30)
+        {
+            deadCells[index][cell] += 1;
+        }
+    }
+    else if (index == 31) {
+        #pragma omp critical (deadCells_31)
+        {
+            deadCells[index][cell] += 1;
+        }
     }
 }
 
@@ -360,8 +689,9 @@ void writeDeadMap(unsigned long index, Cell cell){
 inline void printResults() {
     std::set<Cell> lastGeneration;
 
-    for (auto gen = currentGeneration.begin(); gen != currentGeneration.end(); ++gen) {
-        lastGeneration.insert((*gen).begin(), (*gen).end());
+    for (int i = 0; i < NR_SETS; i++) { 
+        lastGeneration.insert(currentGeneration[i].begin(),
+                              currentGeneration[i].end());
     }
 
     for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
