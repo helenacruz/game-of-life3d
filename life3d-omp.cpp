@@ -33,10 +33,6 @@ public:
         index = generateIndex(x, y, z);
     }
 
-    Cell(int x, int y, int z, int index) : x(x), y(y), z(z) {
-        index = generateIndex(x, y, z);
-    }
-
 
     inline int getX() const {
         return x;
@@ -77,8 +73,8 @@ public:
         size_t operator()(Cell const &x) const noexcept
         {
             return ((51 + std::hash<int>()(x.getX())) *
-                    (51 + std::hash<int>()(x.getY())) *
-                    (51 + std::hash<int>()(x.getZ()))
+                    (51 + 2*std::hash<int>()(x.getY())) *
+                    (51 + 4*std::hash<int>()(x.getZ()))
             );
         }
     };
