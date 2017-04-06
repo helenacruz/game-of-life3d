@@ -10,7 +10,7 @@
 
 #define ARG_SIZE 3
 #define NR_SETS 32
-#define CHUNK 4 // 4 sets per thread each time
+#define CHUNK 4
 
 inline int generateIndex(int x, int y, int z);
 
@@ -32,6 +32,11 @@ public:
     Cell(int x, int y, int z) : x(x), y(y), z(z) {
         index = generateIndex(x, y, z);
     }
+
+    Cell(int x, int y, int z, int index) : x(x), y(y), z(z) {
+        index = generateIndex(x, y, z);
+    }
+
 
     inline int getX() const {
         return x;
@@ -140,9 +145,23 @@ inline void initializeMap(std::vector<DeadMap> &maps) {
 }
 
 inline int generateIndex(int x, int y, int z) {
+    /*
     return ((51 + std::hash<int>()(x)) *
             (51 + std::hash<int>()(y)) *
-            (51 + std::hash<int>()(z))) % NR_SETS;
+            (51 + std::hash<int>()(z))) % NR_SETS;*/
+
+    double nrInChargeX = (double) size / (double) (NR_SETS);
+    double nrInChargeY = (double) size / (double) CHUNK;
+    int index = 0, indexX = 0;
+    int indexY = (int) (y / nrInChargeY);
+    if(size < NR_SETS){
+        indexX = (int) (x / nrInChargeX);
+    }else{
+        indexX = (x / (size / CHUNK))* CHUNK;
+    }
+
+    index = (indexX + indexY) %((NR_SETS));
+    return index;
 }
 
 void evolve() {
@@ -153,6 +172,7 @@ void evolve() {
         for (int i = 0; i < NR_SETS; i++) {
             // Each thread iterates through a set...
             CellSet &set = currentGeneration[i];
+
             for (auto it = set.begin(); it != set.end(); ++it){
                 int neighbors = getNeighbors(*it, i);
                 if (neighbors >= 2 && neighbors <= 4) {
