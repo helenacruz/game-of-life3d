@@ -10,7 +10,7 @@
 
 #define ARG_SIZE 3
 #define NR_SETS 32
-#define CHUNK 4
+#define CHUNK 8
 
 inline int generateIndex(int x, int y, int z);
 
@@ -116,10 +116,12 @@ int main(int argc, char* argv[]) {
     infile >> size;
     int x, y, z;
 
+
     while (infile >> x >> y >> z) {
         Cell cell(x, y, z);
         currentGeneration[cell.getIndex()].insert(cell);
     }
+
 
     for (int i = 0; i < nrGenerations; i++) {
         evolve();
@@ -128,7 +130,7 @@ int main(int argc, char* argv[]) {
     printResults();
 
     double end = omp_get_wtime();
-    std::cout << "Time: " << (end - start) << std::endl;
+    //std::cout << "Time: " << (end - start) << std::endl;
 
     return 0;
 }
@@ -152,11 +154,12 @@ inline int generateIndex(int x, int y, int z) {
     int indexY = (int) (y / nrInChargeY);
     if(size < NR_SETS){
         indexX = (int) (x / nrInChargeX);
+        index = (indexX + indexY) %((NR_SETS));
     }else{
-        indexX = (x / (size / CHUNK))* CHUNK;
+        index = (x * NR_SETS) / size;
     }
 
-    index = (indexX + indexY) %((NR_SETS));
+
     return index;
 }
 
