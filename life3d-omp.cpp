@@ -10,7 +10,7 @@
 
 #define ARG_SIZE 3
 #define NR_SETS 32
-#define CHUNK 8
+#define CHUNK 4
 
 inline int generateIndex(int x, int y, int z);
 
