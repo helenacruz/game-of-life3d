@@ -4,6 +4,7 @@
 \usepackage{babel}
 \usepackage{multirow}
 \usepackage[margin=0.8in]{geometry}
+\usepackage{enumitem}
 
 \author{
 \begin{tabular}{c}
@@ -46,7 +47,7 @@
 \section{Serial version}
 
 The language chosen for the implementation of this project was C++, because of 
-its data structures.
+its data structures and their performance.
 The approach for the implementation of the serial version was very simple. The 
 idea was to basically store all the initial cells in a data structure 
 corresponding to the initial generation and then start evolving, using only two
@@ -59,30 +60,17 @@ Cells were represented as a class with three integer attributes: \texttt{x},
 
 The data structures used in this project were:
 
-\begin{itemize}
+\begin{itemize}[noitemsep]
     \item \texttt{unordered\_set}
     \item \texttt{unordered\_map}
 \end{itemize}
-
-\begin{table}[]
-\centering
-\begin{tabular}{|c|c|c|c|c|c|l|}
-\hline
-\multirow{2}{*}{}          & \multicolumn{2}{c|}{\texttt{insert}}   & \multicolumn{2}{c|}{\texttt{find}}           & \multicolumn{2}{c|}{\texttt{count}}  \\ \cline{2-7} 
-                           & average case        & worst case       & average case  & worst case  & average case   & worst case \\ \hline
-\texttt{unordered\_set}    & O(1)                & O(n)             & O(1)          & O(n)        & O(1)           & O(n)       \\ \hline
-\texttt{ordered\_set}      & \multicolumn{2}{c|}{O(nlog(size + n))} & \multicolumn{2}{c|}{log(N)} & \multicolumn{2}{c|}{log(N)} \\ \hline
-\end{tabular}
-\caption{\texttt{unordered\_set} vs. \texttt{ordered\_set}}
-\label{table:unordered_vs_ordered}
-\end{table}
 
 Cells are unique in the generation, meaning that it's only possible to have one
 cell with a set of coordinates \texttt{(x, y, z)}. For this reason, the best 
 option to store cells was a \texttt{set}. The option of choosing the 
 \texttt{unordered\_set} instead of the \texttt{ordered\_set} was easy: the need 
 for ordering cells was only in the end of all the computation, when printing 
-the results (\ref{table:unordered_vs_ordered}).  
+the results. 
 
 Even though \texttt{ordered\_set} has better performance when compared to the 
 worst case of the \texttt{unordered\_set}, the amount of data and a good 
@@ -144,14 +132,48 @@ few adaptations were made to the algorithm and to the data structures.
 
 \subsection{Parallel algorithm}
 
-Parallel algorithm goes here.
-
-\subsection{Load balancing}
-
-Load balancing goes here.
+To parallelize the serial algorithm, it was crucial to determine the most computationally intensive parts of the algorithm and divide its work load through the various used threads. To accomplish this the following was made:
+\begin{itemize}
+    \item{Declaration of a fixed number of the previously described data structures and their insertion into a vector to be iterated by threads, in which cells are inserted through an index calculation function that depends on cells coordinates.}
+    \item{The threads iterate through the sets, each at a time. Using OpenMP dynamic schedule, if a thread finishes processing its sets, then it will start on another batch of sets - batches of 4.}
+\end{itemize}
 
 \section{Results}
+A summary table is presented below with the analysis of the performance of the parallel algorithm versus the serial implementation.
+\\ \textbf{T(s)} - Time in seconds, \textbf{S} - Speedup = $ \frac{t_{serial}}{t_{parallel}}$ \\[2em]
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrlrrrrrr}
+ & \multicolumn{1}{l}{} & \multicolumn{1}{l}{} & \multicolumn{2}{c}{\textbf{Serial}} & \multicolumn{2}{c}{\textbf{2 threads}} & \multicolumn{2}{c}{\textbf{4 threads}} & \multicolumn{2}{c}{\textbf{8 threads}} \\ \cline{4-11}
+ 
+\textbf{File name} & \multicolumn{1}{l}{\textbf{Size}} & \multicolumn{1}{l}{\textbf{N. gen}} & \multicolumn{2}{l}{\textbf{T(s)}} & \multicolumn{1}{l}{\textbf{T(s)}} & \multicolumn{1}{l}{\textbf{S}} & \multicolumn{1}{l}{\textbf{T(s)}} & \multicolumn{1}{l}{\textbf{S}} & \multicolumn{1}{l}{\textbf{T(s)}} & \multicolumn{1}{l}{\textbf{S}} \\ \hline
 
-Results go here.
+\multicolumn{1}{l|}{s5e50.in} & \multicolumn{1}{r|}{5} & 
+\multicolumn{1}{r|}{10} & 
+\multicolumn{2}{r|}{0.02} & 0.02 & \multicolumn{1}{r|}{1} & 0.03 & \multicolumn{1}{r|}{0.67} & 0.04 & 0.5 \\
+
+\multicolumn{1}{l|}{s20e400.in} & \multicolumn{1}{r|}{20} & 
+\multicolumn{1}{r|}{500} & 
+\multicolumn{2}{r|}{8.79} & 3.61 & \multicolumn{1}{r|}{2.43} & 2.22 & \multicolumn{1}{r|}{3.96} & 1.6 & 5.49 \\
+
+\multicolumn{1}{l|}{s50e5k.in} & \multicolumn{1}{r|}{50} & \multicolumn{1}{r|}{300} & 
+\multicolumn{2}{r|}{116.19} & 28.94 & \multicolumn{1}{r|}{4.01} & 16.92 & \multicolumn{1}{r|}{6.87} & 12.36 & 9.4 \\
+
+\multicolumn{1}{l|}{s50e5k2.in} & \multicolumn{1}{r|}{50} & 
+\multicolumn{1}{r|}{600} & 
+\multicolumn{2}{r|}{270.67} & 64.43 & \multicolumn{1}{r|}{4.2} & 35.83 & \multicolumn{1}{r|}{7.55} & 26.68 & 10.15 \\
+
+\multicolumn{1}{l|}{s150e10k.in} & \multicolumn{1}{r|}{150} & \multicolumn{1}{r|}{1000} & \multicolumn{2}{r|}{3.88} & 3.68 & \multicolumn{1}{r|}{1.05} & 2.47 & \multicolumn{1}{r|}{1.57} & 2.45 & 1.58 \\
+
+\multicolumn{1}{l|}{s200e50k.in} & \multicolumn{1}{r|}{200} & \multicolumn{1}{r|}{1000} & \multicolumn{2}{r|}{15.61} & 10.17 & \multicolumn{1}{r|}{1.53} & 5.91 & \multicolumn{1}{r|}{2.64} & 4.57 & 3.42 \\ 
+
+\multicolumn{1}{l|}{s500e300k.in} & \multicolumn{1}{r|}{500} & \multicolumn{1}{r|}{2000} & \multicolumn{2}{r|}{91.24} & 43.73 & \multicolumn{1}{r|}{2.09} & 26.65 & \multicolumn{1}{r|}{3.42} & 19.02 & 4.78 \\ 
+
+\multicolumn{1}{l|}{s500e300k.in} & \multicolumn{1}{r|}{500} & \multicolumn{1}{r|}{5000} & \multicolumn{2}{r|}{228.76} & 105.84 & \multicolumn{1}{r|}{2.16} & 63.65 & \multicolumn{1}{r|}{3.59} & 46.27 & 4.94 \\ 
+\hline
+\end{tabular}
+\caption{Results - Time and speedup comparison}
+\label{table:results}
+\end{table}
 
 \end{document}
