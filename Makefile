@@ -5,4 +5,4 @@ clean:
 	rm -f life3d-mpi
 
 run: 
-	mpirun -np $(n) life3d-mpi
+	mpirun -np $(n) life3d-mpi $(f) $(gen)
