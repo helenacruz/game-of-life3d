@@ -28,10 +28,12 @@
 *.app
 
 # Idea files
-.idea/*
+
+.idea/
 .idea/workspace.xml
 .cmake-build-debug/*
 cmake-build-debug/*
+cmake-build-debug/
 
 # Test files
 *.myout
