@@ -13,11 +13,9 @@
 #define ARG_SIZE 3
 #define NR_SETS 32
 #define CHUNK 4
+#define OP_SEND_GENERATION 1
 
 inline int generateIndex(int x, int y, int z);
-
-int size;
-
 
 class Cell
 {
@@ -85,17 +83,15 @@ public:
     };
 };
 
+int size, nrProcesses, id;
+
+inline int* getDataToSend(int j);
+inline int getSpaceCellSize(int j);
+
 typedef std::unordered_set<Cell, Cell::hash> CellSet;
 typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
 std::vector<CellSet> currentGeneration(NR_SETS);
-
-class Data{
-    int index;
-    std::vector<CellSet> generation;
-
-public:
-    Data(int index, std::vector<CellSet> generation) : index(index), generation(generation) {}
-};
+inline void prepareCellData(int* data, int count);
 
 int main(int argc, char* argv[]) {
 
@@ -110,7 +106,7 @@ int main(int argc, char* argv[]) {
     // Initial configuration
     MPI_Status status;
 
-    int id, nrProcesses;
+
     double elapsedTime;
 
     MPI_Init(&argc, &argv);
@@ -121,32 +117,58 @@ int main(int argc, char* argv[]) {
     // Only launching process reads configuration file
     // And prepares initial generation
     if(!id){
+
         std::ifstream infile(filename);
         infile >> size;
         int x, y, z;
 
-
         while (infile >> x >> y >> z) {
             Cell cell(x, y, z);
             currentGeneration[cell.getIndex()].insert(cell);
+
         }
     }
-
 
     // Initial Barrier
     MPI_Barrier (MPI_COMM_WORLD);
     elapsedTime = - MPI_Wtime();
 
 
-    // Program Execution
-    Data data = Data(0, currentGeneration);
-    size_t buffer_size = sizeof(int) + sizeof(currentGeneration);
-    char *buffer = new char[buffer_size];
+    if(!id) {
+        // If the root process
+        // We have to broadcast first to all other processes, their corresponding cell sets, with corresponding indexes
 
-    //MPI_Bcast(&data, sizeof(data), MPI_BYTE,, )
+       // for (int i = 0; i < nrGenerations; i++) {
 
-    for (int i = 0; i < nrGenerations; i++) {
-        //evolve();
+            for (int j = 1; j < nrProcesses; j++) {
+                int *data = getDataToSend(j);
+
+                MPI_Send(data, getSpaceCellSize(j), MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
+
+            }
+        //}
+
+    }
+    else{
+        // If all other non-root processes
+        int count;
+
+        // Probe for an incoming message from process zero
+        MPI_Probe(0, OP_SEND_GENERATION, MPI_COMM_WORLD, &status);
+
+        // When probe returns, the status object has the size and other
+        // attributes of the incoming message. Get the message size
+        MPI_Get_count(&status, MPI_INT, &count);
+
+        // Allocate a buffer to hold the incoming numbers
+        int* data = new int[count];
+
+        MPI_Recv(data, count, MPI_INT, 0, OP_SEND_GENERATION, MPI_COMM_WORLD, &status);
+
+        prepareCellData(data, count);
+
+        // When not needed anymore, free data
+        free(data);
     }
 
 
@@ -193,6 +215,111 @@ int main(int argc, char* argv[]) {
  *
  *
  */
+
+/**
+ * Returns an int array that follows following index structure:
+ *
+ * @param j process id to which send data
+ * @return
+ */
+
+inline int getSpaceCellSize(int j){
+    int nrSets = NR_SETS / nrProcesses;
+    int spaceCellSets = 0;
+    int initialSetIndex = j * nrSets;
+    int finalSetIndex = (j+1)*nrSets -1; // Index for j to process are [initialSetIndex , finalSetIndex]
+
+    for(int i = initialSetIndex; i <= finalSetIndex; i++){
+        spaceCellSets+=currentGeneration[i].size();
+    }
+
+    return spaceCellSets;
+}
+
+inline int* getDataToSend(int j){
+
+    // data do send space declaration
+    int nrSets = NR_SETS / nrProcesses;
+    int initialSetIndex = j * nrSets;
+    int finalSetIndex = (j+1)*nrSets -1; // Index for j to process are [initialSetIndex , finalSetIndex]
+    int spaceCellSets = 0;
+
+    for(int i = initialSetIndex; i <= finalSetIndex; i++){
+        spaceCellSets+=currentGeneration[i].size();
+    }
+
+
+    // 1 for initial index + 1 for number of cellsets + Space for cell sets
+    // + 1 for each set so we can put border number, like -1
+    // so the receiving side can diferentiate when one set ends and the other starts
+    int sizeArray = spaceCellSets + 2 + (finalSetIndex - initialSetIndex);
+
+    int* data = new int[sizeArray];
+
+    // data to send definition
+    data[0] = initialSetIndex;
+    data[1] = (finalSetIndex - initialSetIndex) + 1;
+
+
+    int index = 2;
+    int which = 0; // purpose is to differentiate between x, y , z
+
+    // Iterate vector through indexes to send
+    for(int i = initialSetIndex; i < finalSetIndex; i++){
+        CellSet &set = currentGeneration[i];
+
+        // Iterate set
+        for (auto it = set.begin(); it != set.end(); ++it) {
+
+            Cell cell = *it;
+            while(which < 3){
+                switch (which){
+                    case 0:
+                        data[index] = cell.getX();
+                        break;
+                    case 1:
+                        data[index] = cell.getY();
+                        break;
+                    case 2:
+                        data[index] = cell.getZ();
+                        break;
+                }
+                which++;
+            }
+            index++;
+            which = 0;
+        }
+
+        // When we end processing a set, put a border marker
+        data[index] = -1;
+        index++;
+
+    }
+    return data;
+}
+
+inline void prepareCellData(int *data, int count){
+    int initialIndex = data[0];
+    int finalIndex = data[1]; //TODO: it's not needed remove from communication transit
+
+    int nrElements = count - 2;
+    int nrBorders = 0;
+    int index;
+    for(int i = 2; i< nrElements + 2;){
+        index = initialIndex + nrBorders;
+        int number = data[i];
+        if(number == -1){
+            // It's a border marker
+            // Time to pass on to next set
+            nrBorders++;
+            i++;
+        }else{
+            Cell cell(data[i], data[i+1], data[i+2]);
+            currentGeneration[index].insert(cell);
+            i+=3;
+        }
+    }
+}
 
 inline int generateIndex(int x, int y, int z) {
     /*
