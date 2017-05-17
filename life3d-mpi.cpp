@@ -138,11 +138,16 @@ int main(int argc, char* argv[]) {
         std::ifstream infile(filename);
         infile >> size;
         int x, y, z;
-
+        int nCells = 0;
         while (infile >> x >> y >> z) {
             Cell cell(x, y, z);
-            currentGeneration[cell.getIndex()].insert(cell);
+            int index = cell.getIndex();
+            currentGeneration[index].insert(cell);
+            nCells++;
+
         }
+
+        std::cout << "NR CELLS: " << nCells << std::endl;
     }
 
     // Initial Barrier
@@ -303,64 +308,19 @@ inline int getSpaceCellSize(int j){
 inline int* getDataToSend(int j){
 
     // data do send space declaration
-    int nrSets = NR_SETS / nrProcesses;
-    int initialSetIndex = j * nrSets;
-    int finalSetIndex = (j+1)*nrSets -1; // Index for j to process are [initialSetIndex , finalSetIndex]
+    int initialSetIndex = 0;
+    int finalSetIndex = NR_SETS; // Index for j to process are [initialSetIndex , finalSetIndex]
     int spaceCellSets = 0;
 
-    for(int i = initialSetIndex; i <= finalSetIndex; i++){
+    for(int i = initialSetIndex; i < finalSetIndex; i++){
         spaceCellSets+=currentGeneration[i].size();
     }
 
+    int sizeArray = spaceCellSets + (NR_SETS - 1);
 
-    // Also add the sets lateral to this interval, could be needed
-    int leftSide = initialSetIndex == 0 ? NR_SETS - 1 : initialSetIndex - 1;
-    int rightSide = finalSetIndex >= (NR_SETS - 1)? finalSetIndex%NR_SETS - 1 : finalSetIndex + 1;
-    spaceCellSets+=currentGeneration[leftSide].size(); // on the left
-    spaceCellSets+=currentGeneration[rightSide].size(); // on the right
-
-
-    // 1 for initial index + Space for cell sets
-    // + 1 for each set so we can put border number, like -1
-    // so the receiving side can diferentiate when one set ends and the other starts
-    int sizeArray = spaceCellSets + 1 + (finalSetIndex - initialSetIndex + 2);
-
+    std::cout << "sizeArray: " << sizeArray << std::endl;
     int* data = new int[sizeArray];
-
-    // data to send definition
-    data[0] = leftSide;
-
-
-    int index = 2;
-    int which = 0; // purpose is to differentiate between x, y , z
-
-
-    // Iterate most leftern set
-    CellSet &setLeft = currentGeneration[leftSide];
-    for (auto it = setLeft.begin(); it != setLeft.end(); ++it) {
-
-        Cell cell = *it;
-        while(which < 3){
-            switch (which){
-                case 0:
-                    data[index] = cell.getX();
-                    break;
-                case 1:
-                    data[index] = cell.getY();
-                    break;
-                case 2:
-                    data[index] = cell.getZ();
-                    break;
-            }
-            which++;
-        }
-        index++;
-        which = 0;
-    }
-    // When we end processing a set, put a border marker
-    data[index] = -1;
-    index++;
-
+    int index = 0;
 
     // Iterate vector through indexes to send
     for(int i = initialSetIndex; i < finalSetIndex; i++){
@@ -368,24 +328,12 @@ inline int* getDataToSend(int j){
 
         // Iterate set
         for (auto it = set.begin(); it != set.end(); ++it) {
-
             Cell cell = *it;
-            while(which < 3){
-                switch (which){
-                    case 0:
-                        data[index] = cell.getX();
-                        break;
-                    case 1:
-                        data[index] = cell.getY();
-                        break;
-                    case 2:
-                        data[index] = cell.getZ();
-                        break;
-                }
-                which++;
-            }
-            index++;
-            which = 0;
+            data[index] = cell.getX();
+            data[index+1] = cell.getY();
+            data[index+2] = cell.getZ();
+
+            index+=3;
         }
 
         // When we end processing a set, put a border marker
@@ -393,30 +341,6 @@ inline int* getDataToSend(int j){
         index++;
 
     }
-
-    // Iterate most rightern set
-    CellSet &setRight = currentGeneration[rightSide];
-    for (auto it = setRight.begin(); it != setRight.end(); ++it) {
-        Cell cell = *it;
-        while(which < 3){
-            switch (which){
-                case 0:
-                    data[index] = cell.getX();
-                    break;
-                case 1:
-                    data[index] = cell.getY();
-                    break;
-                case 2:
-                    data[index] = cell.getZ();
-                    break;
-            }
-            which++;
-        }
-        index++;
-        which = 0;
-    }
-    // When we end processing a set, put a border marker
-    // data[index] = -1;
 
     return data;
 }
@@ -485,7 +409,6 @@ inline int generateIndex(int x, int y, int z) {
     }else{
         index = (x * NR_SETS) / size;
     }
-
 
     return index;
 }
@@ -633,21 +556,6 @@ int getNeighbors(Cell cell, int vectorIndex) {
     else {
         insertDeadCell(cell6);
     }
-
-    fflush(stdout);
-    std::cout << "1 index: " << cell1.getIndex() << std::endl;
-    fflush(stdout);
-    std::cout << "2 index: " << cell2.getIndex() << std::endl;
-    fflush(stdout);
-    std::cout << "3 index: " << cell3.getIndex() << std::endl;
-    fflush(stdout);
-    std::cout << "4 index: " << cell4.getIndex() << std::endl;
-    fflush(stdout);
-    std::cout << "5 index: " << cell5.getIndex() << std::endl;
-    fflush(stdout);
-    std::cout << "6 index: " << cell6.getIndex() << std::endl;
-    fflush(stdout);
-
 
     return nrNeighbors;
 }
