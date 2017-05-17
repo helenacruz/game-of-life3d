@@ -264,6 +264,7 @@ inline int* getDataToSend(int j){
         spaceCellSets+=currentGeneration[i].size();
     }
 
+
     // Also add the sets lateral to this interval, could be needed
     int leftSide = initialSetIndex == 0 ? NR_SETS - 1 : initialSetIndex - 1;
     int rightSide = finalSetIndex >= (NR_SETS - 1)? finalSetIndex%NR_SETS - 1 : finalSetIndex + 1;
@@ -280,6 +281,7 @@ inline int* getDataToSend(int j){
 
     // data to send definition
     data[0] = leftSide;
+
 
     int index = 2;
     int which = 0; // purpose is to differentiate between x, y , z
@@ -366,7 +368,7 @@ inline int* getDataToSend(int j){
         which = 0;
     }
     // When we end processing a set, put a border marker
-    data[index] = -1;
+   // data[index] = -1;
 
     return data;
 }
