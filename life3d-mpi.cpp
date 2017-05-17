@@ -166,9 +166,11 @@ int main(int argc, char* argv[]) {
                 firstTimeRoot = false;
             }
             evolve(NR_SETS/nrProcesses);
-
+            //std::cout << "============== 0" << std::endl;
+            //printResults();
         }
         else{
+            /*
             if(firstTimeOthers){
 
                 // If all other non-root processes
@@ -198,8 +200,10 @@ int main(int argc, char* argv[]) {
             }
             evolve(NR_SETS);
 
+            std::cout << "=================" << id << std::endl;
+            printResults();
 
-
+            */
         }
         /*
         // All gather
@@ -229,11 +233,11 @@ int main(int argc, char* argv[]) {
         MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, displs ,MPI_INT, MPI_COMM_WORLD);
 
         prepareGeneration(receivedData, totalSizeToReceive, displs);
-         */
+        */
     }
 
     if(!id)
-        printResults();
+        //printResults();
 
     // Final Barrier
     MPI_Barrier (MPI_COMM_WORLD);
@@ -507,7 +511,7 @@ void evolve(int n) {
 
         // We will also divide the dead cells map dynamically among various threads available
         #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = 0; i < NR_SETS; i++) {
+        for (int i = 0; i < n; i++) {
             // Each thread iterates through a map
             DeadMap &map = deadCells[i];
 
@@ -521,7 +525,7 @@ void evolve(int n) {
 
     currentGeneration = std::move(nextGeneration); // new generation is our current generation
     nextGeneration = std::vector<CellSet>(NR_SETS);
-    for (int i = 0; i < NR_SETS; i++) {
+    for (int i = 0; i < n; i++) {
         initializeMap(deadCells);
     }
 }
@@ -629,6 +633,21 @@ int getNeighbors(Cell cell, int vectorIndex) {
     else {
         insertDeadCell(cell6);
     }
+
+    fflush(stdout);
+    std::cout << "1 index: " << cell1.getIndex() << std::endl;
+    fflush(stdout);
+    std::cout << "2 index: " << cell2.getIndex() << std::endl;
+    fflush(stdout);
+    std::cout << "3 index: " << cell3.getIndex() << std::endl;
+    fflush(stdout);
+    std::cout << "4 index: " << cell4.getIndex() << std::endl;
+    fflush(stdout);
+    std::cout << "5 index: " << cell5.getIndex() << std::endl;
+    fflush(stdout);
+    std::cout << "6 index: " << cell6.getIndex() << std::endl;
+    fflush(stdout);
+
 
     return nrNeighbors;
 }
