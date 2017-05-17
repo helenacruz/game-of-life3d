@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
             if(firstTimeRoot){
                 for (int j = 1; j < nrProcesses; j++) {
                     int *data = getDataToSend(j);
-                    std::cout << dat
+
                     MPI_Send(data, getSpaceCellSize(j), MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
                 }
 
@@ -308,37 +308,55 @@ inline int* getDataToSend(int j){
         spaceCellSets+=currentGeneration[i].size();
     }
 
+
     // Also add the sets lateral to this interval, could be needed
     int leftSide = initialSetIndex == 0 ? NR_SETS - 1 : initialSetIndex - 1;
-    int rightSide = finalSetIndex >= (NR_SETS - 1) ? 0 : finalSetIndex + 1;
+    int rightSide = finalSetIndex >= (NR_SETS - 1)? finalSetIndex%NR_SETS - 1 : finalSetIndex + 1;
     spaceCellSets+=currentGeneration[leftSide].size(); // on the left
     spaceCellSets+=currentGeneration[rightSide].size(); // on the right
+
 
     // 1 for initial index + Space for cell sets
     // + 1 for each set so we can put border number, like -1
     // so the receiving side can diferentiate when one set ends and the other starts
-    int sizeArray = spaceCellSets + 1 + (nrSets - 1);
+    int sizeArray = spaceCellSets + 1 + (finalSetIndex - initialSetIndex + 2);
 
     int* data = new int[sizeArray];
 
     // data to send definition
     data[0] = leftSide;
-    int index = 1; // for initial index
+
+
+    int index = 2;
+    int which = 0; // purpose is to differentiate between x, y , z
+
 
     // Iterate most leftern set
     CellSet &setLeft = currentGeneration[leftSide];
     for (auto it = setLeft.begin(); it != setLeft.end(); ++it) {
 
         Cell cell = *it;
-        data[index] = cell.getX();
-        data[index+1] = cell.getY();
-        data[index+2] = cell.getZ();
-
-        index+=3;
+        while(which < 3){
+            switch (which){
+                case 0:
+                    data[index] = cell.getX();
+                    break;
+                case 1:
+                    data[index] = cell.getY();
+                    break;
+                case 2:
+                    data[index] = cell.getZ();
+                    break;
+            }
+            which++;
+        }
+        index++;
+        which = 0;
     }
     // When we end processing a set, put a border marker
     data[index] = -1;
     index++;
+
 
     // Iterate vector through indexes to send
     for(int i = initialSetIndex; i < finalSetIndex; i++){
@@ -348,29 +366,53 @@ inline int* getDataToSend(int j){
         for (auto it = set.begin(); it != set.end(); ++it) {
 
             Cell cell = *it;
-            data[index] = cell.getX();
-            data[index+1] = cell.getY();
-            data[index+2] = cell.getZ();
-
-            index+=3;
+            while(which < 3){
+                switch (which){
+                    case 0:
+                        data[index] = cell.getX();
+                        break;
+                    case 1:
+                        data[index] = cell.getY();
+                        break;
+                    case 2:
+                        data[index] = cell.getZ();
+                        break;
+                }
+                which++;
+            }
+            index++;
+            which = 0;
         }
 
         // When we end processing a set, put a border marker
         data[index] = -1;
         index++;
+
     }
 
     // Iterate most rightern set
     CellSet &setRight = currentGeneration[rightSide];
     for (auto it = setRight.begin(); it != setRight.end(); ++it) {
         Cell cell = *it;
-        data[index] = cell.getX();
-        data[index+1] = cell.getY();
-        data[index+2] = cell.getZ();
-
-        index+=3;
+        while(which < 3){
+            switch (which){
+                case 0:
+                    data[index] = cell.getX();
+                    break;
+                case 1:
+                    data[index] = cell.getY();
+                    break;
+                case 2:
+                    data[index] = cell.getZ();
+                    break;
+            }
+            which++;
+        }
+        index++;
+        which = 0;
     }
-
+    // When we end processing a set, put a border marker
+    // data[index] = -1;
 
     return data;
 }
