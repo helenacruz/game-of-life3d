@@ -99,7 +99,7 @@ std::vector<DeadMap> deadCells(NR_SETS);
 typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
 
 // Function Headers
-void evolve(int n);
+void evolve(int n, int j);
 int getNeighbors(Cell cell, int i);
 inline int* getDataToSend(int j);
 inline int getSpaceCellSize(int j);
@@ -109,6 +109,7 @@ void insertDeadCell(Cell cell);
 void insertNextGeneration(Cell cell);
 void prepareGeneration(int *data, int totalSizeToReceive, int *displs);
 inline void printResults();
+int arraySize;
 
 int main(int argc, char* argv[]) {
 
@@ -146,8 +147,6 @@ int main(int argc, char* argv[]) {
             nCells++;
 
         }
-
-        std::cout << "NR CELLS: " << nCells << std::endl;
     }
 
     // Initial Barrier
@@ -163,19 +162,14 @@ int main(int argc, char* argv[]) {
             if(firstTimeRoot){
                 for (int j = 1; j < nrProcesses; j++) {
                     int *data = getDataToSend(j);
-
-                    MPI_Send(data, getSpaceCellSize(j), MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
+                    MPI_Send(data, arraySize, MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
                 }
-
                 // all to all
                 firstTimeRoot = false;
             }
-            evolve(NR_SETS/nrProcesses);
-            //std::cout << "============== 0" << std::endl;
-            //printResults();
+            evolve(0, NR_SETS / nrProcesses);
         }
         else{
-            /*
             if(firstTimeOthers){
 
                 // If all other non-root processes
@@ -195,7 +189,6 @@ int main(int argc, char* argv[]) {
 
                 prepareCellData(data, count);
 
-
                 // all to all
                 firstTimeOthers = false;
 
@@ -203,19 +196,15 @@ int main(int argc, char* argv[]) {
                 free(data);
 
             }
-            evolve(NR_SETS);
-
-            std::cout << "=================" << id << std::endl;
-            printResults();
-
-            */
+            evolve((NR_SETS / nrProcesses)*id, (NR_SETS / nrProcesses)*(id+1));
         }
-        /*
+
         // All gather
-        int *dataToSend = getDataToSend(id); // ????????
+        /*
+        int *dataToSend = getDataToSend(id);
 
         // First gather the size of each set among all processes to send
-        int dataSizeToSend = sizeof(dataToSend) / sizeof(dataToSend[0]);
+        int dataSizeToSend = arraySize;
 
         MPI_Allgather(&dataSizeToSend, 1, MPI_INT, cellCounter, 1, MPI_INT, MPI_COMM_WORLD);
 
@@ -285,25 +274,6 @@ int main(int argc, char* argv[]) {
  *
  */
 
-/**
- * Returns an int array that follows following index structure:
- *
- * @param j process id to which send data
- * @return
- */
-
-inline int getSpaceCellSize(int j){
-    int nrSets = NR_SETS / nrProcesses;
-    int spaceCellSets = 0;
-    int initialSetIndex = j * nrSets;
-    int finalSetIndex = (j+1)*nrSets -1; // Index for j to process are [initialSetIndex , finalSetIndex]
-
-    for(int i = initialSetIndex; i <= finalSetIndex; i++){
-        spaceCellSets+=currentGeneration[i].size();
-    }
-
-    return spaceCellSets;
-}
 
 inline int* getDataToSend(int j){
 
@@ -316,9 +286,8 @@ inline int* getDataToSend(int j){
         spaceCellSets+=currentGeneration[i].size();
     }
 
-    int sizeArray = spaceCellSets + (NR_SETS - 1);
-
-    std::cout << "sizeArray: " << sizeArray << std::endl;
+    int sizeArray = 3*spaceCellSets + (NR_SETS - 1);
+    arraySize = sizeArray;
     int* data = new int[sizeArray];
     int index = 0;
 
@@ -372,22 +341,16 @@ inline void prepareGeneration(int *data, int totalSize, int *displs){
 }
 
 inline void prepareCellData(int *data, int count){
-    int initialIndex = data[0];
 
-    int nrElements = count - 1;
     int nrBorders = 0;
-    int index;
-    for(int i = 1; i<= nrElements;){
-        index = (initialIndex + nrBorders)%NR_SETS;
-        int number = data[i];
-        if(number == -1){
-            // It's a border marker
-            // Time to pass on to next set
+    for(int i = 0; i< count; ){
+        int value = data[i];
+        if(value == -1){
             nrBorders++;
             i++;
         }else{
             Cell cell(data[i], data[i+1], data[i+2]);
-            currentGeneration[index].insert(cell);
+            currentGeneration[nrBorders].insert(cell);
             i+=3;
         }
     }
@@ -414,12 +377,12 @@ inline int generateIndex(int x, int y, int z) {
 }
 
 
-void evolve(int n) {
+void evolve(int initial, int end) {
     #pragma omp parallel
     {
         // We will divide the current generation vector sets dynamically among various threads available
         #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = 0; i < n; i++) {
+        for (int i = initial; i < end; i++) {
             // Each thread iterates through a set...
             CellSet &set = currentGeneration[i];
 
@@ -434,7 +397,7 @@ void evolve(int n) {
 
         // We will also divide the dead cells map dynamically among various threads available
         #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = 0; i < n; i++) {
+        for (int i = initial; i < end; i++) {
             // Each thread iterates through a map
             DeadMap &map = deadCells[i];
 
@@ -448,7 +411,7 @@ void evolve(int n) {
 
     currentGeneration = std::move(nextGeneration); // new generation is our current generation
     nextGeneration = std::vector<CellSet>(NR_SETS);
-    for (int i = 0; i < n; i++) {
+    for (int i = initial; i < end; i++) {
         initializeMap(deadCells);
     }
 }
