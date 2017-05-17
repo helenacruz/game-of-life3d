@@ -1,6 +1,7 @@
 //
 // Created by goncalo on 09-05-2017.
 //
+#include <set>
 #include <mpi.h>
 #include <cstdlib>
 #include <iostream>
@@ -84,6 +85,10 @@ public:
 };
 
 int size, nrProcesses, id;
+bool firstTimeRoot = true;
+bool firstTimeOthers = true;
+int *cellCounter;
+
 
 // Variables
 typedef std::unordered_set<Cell, Cell::hash> CellSet;
@@ -102,8 +107,8 @@ inline void prepareCellData(int* data, int count);
 inline void initializeMap(std::vector<DeadMap> &maps);
 void insertDeadCell(Cell cell);
 void insertNextGeneration(Cell cell);
-
-
+void prepareGeneration(int *data, int totalSizeToReceive, int *displs);
+inline void printResults();
 
 int main(int argc, char* argv[]) {
 
@@ -137,65 +142,102 @@ int main(int argc, char* argv[]) {
         while (infile >> x >> y >> z) {
             Cell cell(x, y, z);
             currentGeneration[cell.getIndex()].insert(cell);
-
         }
     }
 
     // Initial Barrier
-    MPI_Barrier (MPI_COMM_WORLD);
+
     elapsedTime = - MPI_Wtime();
 
+    // Initialize set counter array
+    cellCounter = new int[nrProcesses];
 
-    if(!id) {
-        // If the root process
-        // We have to broadcast first to all other processes, their corresponding cell sets, with corresponding indexes
+    for(int i = 0; i < nrGenerations; i++){
+        MPI_Barrier (MPI_COMM_WORLD);
+        if(!id) {
+            if(firstTimeRoot){
+                for (int j = 1; j < nrProcesses; j++) {
+                    int *data = getDataToSend(j);
+                    std::cout << dat
+                    MPI_Send(data, getSpaceCellSize(j), MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
+                }
 
-       // for (int i = 0; i < nrGenerations; i++) {
+                // all to all
+                firstTimeRoot = false;
+            }
+            evolve(NR_SETS/nrProcesses);
 
-            for (int j = 1; j < nrProcesses; j++) {
-                int *data = getDataToSend(j);
+        }
+        else{
+            if(firstTimeOthers){
 
-                MPI_Send(data, getSpaceCellSize(j), MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
+                // If all other non-root processes
+                int count;
+
+                // Probe for an incoming message from process zero
+                MPI_Probe(0, OP_SEND_GENERATION, MPI_COMM_WORLD, &status);
+
+                // When probe returns, the status object has the size and other
+                // attributes of the incoming message. Get the message size
+                MPI_Get_count(&status, MPI_INT, &count);
+
+                // Allocate a buffer to hold the incoming numbers
+                int* data = new int[count];
+
+                MPI_Recv(data, count, MPI_INT, 0, OP_SEND_GENERATION, MPI_COMM_WORLD, &status);
+
+                prepareCellData(data, count);
+
+
+                // all to all
+                firstTimeOthers = false;
+
+                // When not needed anymore, free data
+                free(data);
 
             }
+            evolve(NR_SETS);
 
-            evolve(NR_SETS/nrProcesses); //
-        //}
 
+
+        }
+        /*
+        // All gather
+        int *dataToSend = getDataToSend(id); // ????????
+
+        // First gather the size of each set among all processes to send
+        int dataSizeToSend = sizeof(dataToSend) / sizeof(dataToSend[0]);
+
+        MPI_Allgather(&dataSizeToSend, 1, MPI_INT, cellCounter, 1, MPI_INT, MPI_COMM_WORLD);
+
+        // Then ...
+        int totalSizeToReceive = 0;
+        for(int m = 0; m < nrProcesses; m++){
+            totalSizeToReceive += cellCounter[m];
+        }
+
+        // Allocate data for the receiving array
+        int *receivedData = new int[totalSizeToReceive];
+
+        // Get the offset of each process
+        int *displs = new int[nrProcesses];
+        displs[0] = 0;
+        for (int j = 1; j < nrProcesses; j++) {
+            displs[j] = displs[j - 1] + cellCounter[j - 1];
+        }
+
+        MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, displs ,MPI_INT, MPI_COMM_WORLD);
+
+        prepareGeneration(receivedData, totalSizeToReceive, displs);
+         */
     }
-    else{
-        // If all other non-root processes
-        int count;
 
-        // Probe for an incoming message from process zero
-        MPI_Probe(0, OP_SEND_GENERATION, MPI_COMM_WORLD, &status);
-
-        // When probe returns, the status object has the size and other
-        // attributes of the incoming message. Get the message size
-        MPI_Get_count(&status, MPI_INT, &count);
-
-        // Allocate a buffer to hold the incoming numbers
-        int* data = new int[count];
-
-        MPI_Recv(data, count, MPI_INT, 0, OP_SEND_GENERATION, MPI_COMM_WORLD, &status);
-
-        prepareCellData(data, count);
-
-
-        evolve(NR_SETS);
-
-        std::cout << "Process id: " << id << std::endl;
-        // When not needed anymore, free data
-        free(data);
-    }
-
+    if(!id)
+        printResults();
 
     // Final Barrier
     MPI_Barrier (MPI_COMM_WORLD);
     elapsedTime += MPI_Wtime();
-
-
-    std::cout << "Total execution time: " << elapsedTime << std::endl;
 
     MPI_Finalize();
 
@@ -329,7 +371,34 @@ inline int* getDataToSend(int j){
         index+=3;
     }
 
+
     return data;
+}
+
+/**
+ * counter: vector of numbers of elements each process sends
+ * displs: vector that contains the index where each process data starts
+ */
+inline void prepareGeneration(int *data, int totalSize, int *displs){
+    int initialIndex;
+    int nrBorders = 0;
+    int index;
+
+    for (int i = 0; i < nrProcesses; i++) {
+        initialIndex = data[displs[i]];
+        for (int j = displs[i] + 1; j < cellCounter[i] + displs[i]; ) {
+            index = (initialIndex + nrBorders) % NR_SETS;
+            if (data[j] == -1) {
+                nrBorders++;
+                j++;
+            }
+            else {
+                Cell cell(data[j], data[j + 1], data[j + 2]);
+                currentGeneration[index].insert(cell);
+                j += 3;
+            }
+        }
+    }
 }
 
 inline void prepareCellData(int *data, int count){
@@ -924,5 +993,20 @@ inline void initializeMap(std::vector<DeadMap> &maps) {
     for (int i = 0; i < NR_SETS; i++) {
         DeadMap map;
         maps[i] = map;
+    }
+}
+
+/* Aux functions for printing data */
+inline void printResults() {
+    std::set<Cell> lastGeneration;
+
+    for (int i = 0; i < NR_SETS; i++) {
+       //std::cout << currentGeneration[i].size() << std::endl;
+        lastGeneration.insert(currentGeneration[i].begin(),
+                              currentGeneration[i].end());
+    }
+
+    for (auto it = lastGeneration.begin(); it != lastGeneration.end(); ++it) {
+        std::cout << *it << std::endl;
     }
 }
