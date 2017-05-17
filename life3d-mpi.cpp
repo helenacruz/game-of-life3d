@@ -94,7 +94,7 @@ std::vector<DeadMap> deadCells(NR_SETS);
 typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
 
 // Function Headers
-void evolve();
+void evolve(int n);
 int getNeighbors(Cell cell, int i);
 inline int* getDataToSend(int j);
 inline int getSpaceCellSize(int j);
@@ -158,6 +158,8 @@ int main(int argc, char* argv[]) {
                 MPI_Send(data, getSpaceCellSize(j), MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
 
             }
+
+            evolve(NR_SETS/nrProcesses); //
         //}
 
     }
@@ -180,7 +182,7 @@ int main(int argc, char* argv[]) {
         prepareCellData(data, count);
 
 
-        evolve();
+        evolve(NR_SETS);
 
         std::cout << "Process id: " << id << std::endl;
         // When not needed anymore, free data
@@ -264,55 +266,37 @@ inline int* getDataToSend(int j){
         spaceCellSets+=currentGeneration[i].size();
     }
 
-
     // Also add the sets lateral to this interval, could be needed
     int leftSide = initialSetIndex == 0 ? NR_SETS - 1 : initialSetIndex - 1;
-    int rightSide = finalSetIndex >= (NR_SETS - 1)? finalSetIndex%NR_SETS - 1 : finalSetIndex + 1;
+    int rightSide = finalSetIndex >= (NR_SETS - 1) ? 0 : finalSetIndex + 1;
     spaceCellSets+=currentGeneration[leftSide].size(); // on the left
     spaceCellSets+=currentGeneration[rightSide].size(); // on the right
-
 
     // 1 for initial index + Space for cell sets
     // + 1 for each set so we can put border number, like -1
     // so the receiving side can diferentiate when one set ends and the other starts
-    int sizeArray = spaceCellSets + 1 + (finalSetIndex - initialSetIndex + 2);
+    int sizeArray = spaceCellSets + 1 + (nrSets - 1);
 
     int* data = new int[sizeArray];
 
     // data to send definition
     data[0] = leftSide;
-
-
-    int index = 2;
-    int which = 0; // purpose is to differentiate between x, y , z
-
+    int index = 1; // for initial index
 
     // Iterate most leftern set
     CellSet &setLeft = currentGeneration[leftSide];
     for (auto it = setLeft.begin(); it != setLeft.end(); ++it) {
 
         Cell cell = *it;
-        while(which < 3){
-            switch (which){
-                case 0:
-                    data[index] = cell.getX();
-                    break;
-                case 1:
-                    data[index] = cell.getY();
-                    break;
-                case 2:
-                    data[index] = cell.getZ();
-                    break;
-            }
-            which++;
-        }
-        index++;
-        which = 0;
+        data[index] = cell.getX();
+        data[index+1] = cell.getY();
+        data[index+2] = cell.getZ();
+
+        index+=3;
     }
     // When we end processing a set, put a border marker
     data[index] = -1;
     index++;
-
 
     // Iterate vector through indexes to send
     for(int i = initialSetIndex; i < finalSetIndex; i++){
@@ -322,53 +306,28 @@ inline int* getDataToSend(int j){
         for (auto it = set.begin(); it != set.end(); ++it) {
 
             Cell cell = *it;
-            while(which < 3){
-                switch (which){
-                    case 0:
-                        data[index] = cell.getX();
-                        break;
-                    case 1:
-                        data[index] = cell.getY();
-                        break;
-                    case 2:
-                        data[index] = cell.getZ();
-                        break;
-                }
-                which++;
-            }
-            index++;
-            which = 0;
+            data[index] = cell.getX();
+            data[index+1] = cell.getY();
+            data[index+2] = cell.getZ();
+
+            index+=3;
         }
 
         // When we end processing a set, put a border marker
         data[index] = -1;
         index++;
-
     }
 
     // Iterate most rightern set
     CellSet &setRight = currentGeneration[rightSide];
     for (auto it = setRight.begin(); it != setRight.end(); ++it) {
         Cell cell = *it;
-        while(which < 3){
-            switch (which){
-                case 0:
-                    data[index] = cell.getX();
-                    break;
-                case 1:
-                    data[index] = cell.getY();
-                    break;
-                case 2:
-                    data[index] = cell.getZ();
-                    break;
-            }
-            which++;
-        }
-        index++;
-        which = 0;
+        data[index] = cell.getX();
+        data[index+1] = cell.getY();
+        data[index+2] = cell.getZ();
+
+        index+=3;
     }
-    // When we end processing a set, put a border marker
-   // data[index] = -1;
 
     return data;
 }
@@ -379,7 +338,7 @@ inline void prepareCellData(int *data, int count){
     int nrElements = count - 1;
     int nrBorders = 0;
     int index;
-    for(int i = 1; i< nrElements + 1;){
+    for(int i = 1; i<= nrElements;){
         index = (initialIndex + nrBorders)%NR_SETS;
         int number = data[i];
         if(number == -1){
@@ -416,12 +375,13 @@ inline int generateIndex(int x, int y, int z) {
     return index;
 }
 
-void evolve() {
+
+void evolve(int n) {
     #pragma omp parallel
     {
         // We will divide the current generation vector sets dynamically among various threads available
         #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = 0; i < NR_SETS; i++) {
+        for (int i = 0; i < n; i++) {
             // Each thread iterates through a set...
             CellSet &set = currentGeneration[i];
 
