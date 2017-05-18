@@ -163,6 +163,7 @@ int main(int argc, char* argv[]) {
             if(firstTimeRoot){
                 for (int j = 1; j < nrProcesses; j++) {
                     int *data = getDataToSend();
+
                     MPI_Send(data, arraySize, MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
                 }
                 // all to all
@@ -185,7 +186,7 @@ int main(int argc, char* argv[]) {
                 MPI_Get_count(&status, MPI_INT, &count);
 
                 // Allocate a buffer to hold the incoming numbers
-                int* data = new int[count];
+                int data[count];
 
                 MPI_Recv(data, count, MPI_INT, 0, OP_SEND_GENERATION, MPI_COMM_WORLD, &status);
 
@@ -195,17 +196,26 @@ int main(int argc, char* argv[]) {
                 firstTimeOthers = false;
 
                 // When not needed anymore, free data
-                free(data);
+                //delete data;
 
             }
 
-           evolve((NR_SETS / nrProcesses)*id, (NR_SETS /nrProcesses)*(id*1));
+           evolve((NR_SETS / nrProcesses)*id, (NR_SETS /nrProcesses)*(id+1));
         }
 
+
+
         // First gather the size of each set among all processes to send
+
         int *dataToSend = getDataToSend();
+
+
         int dataSizeToSend = arraySize;
+
+
         MPI_Allgather(&dataSizeToSend, 1, MPI_INT, cellCounter, 1, MPI_INT, MPI_COMM_WORLD);
+
+
 
         // Then ...
         // Allocate data for the receiving array
@@ -213,43 +223,40 @@ int main(int argc, char* argv[]) {
         for(int m = 0; m < nrProcesses; m++){
             totalSizeToReceive += cellCounter[m];
         }
-        int *receivedData = new int[totalSizeToReceive];
+
+
+
+        int receivedData[totalSizeToReceive];
 
         // Get the offset of each process
-        int *offset = new int[nrProcesses];
+        int offset[nrProcesses];
+
         offset[0] = 0;
+
         for (int j = 1; j < nrProcesses; j++) {
             offset[j] = offset[j - 1] + cellCounter[j - 1];
         }
 
-        /*
-        for(int z = 0; z < arraySize; ){
-            if(dataToSend[z] == -1){
-                z+=1;
-            }else{
-                std::cout << "id: " << id << " value: " << dataToSend[z] << " " << dataToSend[z+1] << " " << dataToSend[z+2] << std::endl;
-                z+=3;
-            }
-        }*/
+
 
 
         MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, offset ,MPI_INT, MPI_COMM_WORLD);
 
-
-
-
         prepareGeneration(receivedData, offset);
-        //printResults();
+
 
     }
 
-    //if(!id)
-        //printResults();
+    if(!id){
+       printResults();
+    }
 
 
     // Final Barrier
-    MPI_Barrier (MPI_COMM_WORLD);
-    elapsedTime += MPI_Wtime();
+    //MPI_Barrier (MPI_COMM_WORLD);
+    //elapsedTime += MPI_Wtime();
+
+
 
     MPI_Finalize();
 
@@ -300,9 +307,13 @@ inline int* getDataToSend(){
         spaceCellSets+=currentGeneration[i].size();
     }
 
-    int sizeArray = 3*spaceCellSets + (NR_SETS - 1);
+    int sizeArray = 3*spaceCellSets + (NR_SETS - 1) + 1;
     arraySize = sizeArray;
-    int* data = new int[sizeArray];
+
+
+    int *data = new int[sizeArray];
+
+
     int index = 0;
 
     // Iterate vector through indexes to send
@@ -321,9 +332,20 @@ inline int* getDataToSend(){
 
         // When we end processing a set, put a border marker
         data[index] = -1;
+
         index++;
 
     }
+
+
+    if(id == 1){
+        std::cout << "==================================================" << std::endl;
+        for(int z = 0; z < arraySize; z++){
+            std::cout << "value: " << data[z] << " index: " << z << std::endl;
+            fflush(stdout);
+        }
+    }
+
 
     return data;
 }
