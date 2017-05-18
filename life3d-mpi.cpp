@@ -151,8 +151,8 @@ int main(int argc, char* argv[]) {
     }
 
     // Initial Barrier
-
     elapsedTime = - MPI_Wtime();
+    MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Initialize set counter array
     cellCounter = new int[nrProcesses];
@@ -169,14 +169,7 @@ int main(int argc, char* argv[]) {
                 firstTimeRoot = false;
             }
 
-
-
-            evolve(0, 32);
-
-
-            //printResults();
-            //evolve(8, 16);
-            //printResults();
+            evolve(0, NR_SETS / nrProcesses);
         }
         else{
             if(firstTimeOthers){
@@ -206,17 +199,9 @@ int main(int argc, char* argv[]) {
 
             }
 
-
-            if(id == 1){
-                evolve(0,32);
-                printResults();
-            }
-            //evolve(8,16);
-
-
-
+           evolve((NR_SETS / nrProcesses)*id, (NR_SETS /nrProcesses)*(id*1));
         }
-        /*
+
         // First gather the size of each set among all processes to send
         int *dataToSend = getDataToSend();
         int dataSizeToSend = arraySize;
@@ -238,10 +223,6 @@ int main(int argc, char* argv[]) {
         }
 
         /*
-        if(id){
-            std::cout << "id: " << id << " size: " << arraySize << std::endl;
-        }
-
         for(int z = 0; z < arraySize; ){
             if(dataToSend[z] == -1){
                 z+=1;
@@ -249,22 +230,16 @@ int main(int argc, char* argv[]) {
                 std::cout << "id: " << id << " value: " << dataToSend[z] << " " << dataToSend[z+1] << " " << dataToSend[z+2] << std::endl;
                 z+=3;
             }
-        }
+        }*/
 
 
         MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, offset ,MPI_INT, MPI_COMM_WORLD);
 
-        std::cout << "---------------" << std::endl;
-        if(id == 1){
-            for(int z = 0; z < totalSizeToReceive; z++){
-                std::cout << "value: " << receivedData[z] << std::endl;
-            }
-        }
+
 
 
         prepareGeneration(receivedData, offset);
-
-        */
+        //printResults();
 
     }
 
@@ -454,7 +429,6 @@ void evolve() {
 }
 
 void evolve(int initial, int end) {
-    std::cout << initial << " " << end << std::endl;
     #pragma omp parallel
     {
         // We will divide the current generation vector sets dynamically among various threads available
@@ -464,20 +438,11 @@ void evolve(int initial, int end) {
             CellSet &set = currentGeneration[i];
 
             for (auto it = set.begin(); it != set.end(); ++it){
-
-
                 int neighbors = getNeighbors(*it, i);
-                if(id == 0){
 
-                    std::cout << *it << " neigh: " << neighbors << std::endl;
-                    //fflush(stdout);
-                }
-                //Sif(id)
-                    //std::cout << "neightbors: " << neighbors << std::endl;
                 if (neighbors >= 2 && neighbors <= 4) {
                     // with 2 to 4 neighbors the cell lives
                     insertNextGeneration(*it);
-
                 }
             }
         }
