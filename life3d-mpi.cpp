@@ -158,9 +158,11 @@ int main(int argc, char* argv[]) {
     cellCounter = new int[nrProcesses];
 
     for(int i = 0; i < nrGenerations; i++){
+
         MPI_Barrier (MPI_COMM_WORLD);
         if(!id) {
             if(firstTimeRoot){
+
                 for (int j = 1; j < nrProcesses; j++) {
                     int *data = getDataToSend();
 
@@ -169,8 +171,11 @@ int main(int argc, char* argv[]) {
                 // all to all
                 firstTimeRoot = false;
             }
-
             evolve(0, NR_SETS / nrProcesses);
+
+            //evolve(0, (NR_SETS / nrProcesses) + 1);
+            //evolve(0, NR_SETS / nrProcesses);
+
         }
         else{
             if(firstTimeOthers){
@@ -192,6 +197,8 @@ int main(int argc, char* argv[]) {
 
                 prepareCellData(data, count);
 
+                printResults();
+
                 // all to all
                 firstTimeOthers = false;
 
@@ -200,21 +207,23 @@ int main(int argc, char* argv[]) {
 
             }
 
-           evolve((NR_SETS / nrProcesses)*id, (NR_SETS /nrProcesses)*(id+1));
+            //evolve(0,32);
+            evolve((NR_SETS / nrProcesses)*id, (NR_SETS /nrProcesses)*(id+1));
+
         }
 
-
-
         // First gather the size of each set among all processes to send
-
         int *dataToSend = getDataToSend();
-
-
         int dataSizeToSend = arraySize;
 
 
         MPI_Allgather(&dataSizeToSend, 1, MPI_INT, cellCounter, 1, MPI_INT, MPI_COMM_WORLD);
 
+        if(!id){
+            for(int z = 0; z < nrProcesses; z++){
+             //   std::cout << "cell: "<< cellCounter[z] << std::endl;
+            }
+        }
 
 
         // Then ...
@@ -223,38 +232,34 @@ int main(int argc, char* argv[]) {
         for(int m = 0; m < nrProcesses; m++){
             totalSizeToReceive += cellCounter[m];
         }
-
-
-
         int receivedData[totalSizeToReceive];
+       // std::cout << "size: "<< totalSizeToReceive << std::endl;
 
         // Get the offset of each process
         int offset[nrProcesses];
-
         offset[0] = 0;
-
         for (int j = 1; j < nrProcesses; j++) {
             offset[j] = offset[j - 1] + cellCounter[j - 1];
         }
 
 
-
-
         MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, offset ,MPI_INT, MPI_COMM_WORLD);
-
+        for(auto it=currentGeneration.begin(); it != currentGeneration.end(); it++){
+            (*it).clear();
+        }
         prepareGeneration(receivedData, offset);
 
 
     }
 
-    if(!id){
-       printResults();
+    if(id == 1){
+     //  printResults();
     }
 
 
     // Final Barrier
-    //MPI_Barrier (MPI_COMM_WORLD);
-    //elapsedTime += MPI_Wtime();
+    MPI_Barrier (MPI_COMM_WORLD);
+    elapsedTime += MPI_Wtime();
 
 
 
@@ -262,39 +267,6 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-/**
- *  Don't forget:
- *
- *  MPI_SEND(const void *buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm)
- *  MPI_SEND is asynchronous
- *  -> dest must be a valid rank between 0,...,N-1
- *
- *  MPI_RECV(void *buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Status *status)
- *  MPI_RECV is synchronous, i.e, process will lock till it receives something
- *
- *  MPI_Barrier (MPI_COMM_WORLD);
- *  MPI_Barrier is an active waiting for all processes to reach this point
- *
- *  MPI_ANY_SOURCE -> disregards the id of the sending process
- *                 -> i.e, accepts a write from any process
- *
- *  MPI_ANY_TAG -> on the sending side, a TAG must be specified (int)
- *              -> on the receiving side, a TAG must also be specified, but
- *              wildcard MPI_ANY_TAG matches any tag.
- *
- *  Reasons to use wildcards:
- *  - receiving messages from several sources into the same buffer (use MPI_ANY_SOURCE)
- *  - receiving several messages from the same source into the same buffer, and don’t care about the order
- *  (use MPI ANY TAG)
- *
- *  MPI Status is a structure on the receiving side, with the following attributes:
- *  - status.MPI TAG is tag of incoming message
- *  - status.MPI SOURCE is source of incoming message
- *  - MPI Get count(IN status, IN datatype, OUT count) -> how many elements of a given datatype were received
- *
- *
- */
-
 
 inline int* getDataToSend(){
 
@@ -307,7 +279,7 @@ inline int* getDataToSend(){
         spaceCellSets+=currentGeneration[i].size();
     }
 
-    int sizeArray = 3*spaceCellSets + (NR_SETS - 1) + 1;
+    int sizeArray = 3*spaceCellSets + (NR_SETS - 1);
     arraySize = sizeArray;
 
 
@@ -331,21 +303,12 @@ inline int* getDataToSend(){
         }
 
         // When we end processing a set, put a border marker
-        data[index] = -1;
+        if(index != sizeArray)
+            data[index] = -1;
 
         index++;
 
     }
-
-
-    if(id == 1){
-        std::cout << "==================================================" << std::endl;
-        for(int z = 0; z < arraySize; z++){
-            std::cout << "value: " << data[z] << " index: " << z << std::endl;
-            fflush(stdout);
-        }
-    }
-
 
     return data;
 }
@@ -356,11 +319,14 @@ inline int* getDataToSend(){
  */
 inline void prepareGeneration(int *data, int *offset){
     int nrBorders;
-    int index;
+    int index = 0;
 
     for (int i = 0; i < nrProcesses; i++) {
         nrBorders = 0;
         for (int j = offset[i]; j < cellCounter[i] + offset[i]; ) {
+            if(id== 0){
+              // std::cout << "index: " << index << std::endl;
+            }
             index = nrBorders % NR_SETS;
             if (data[j] == -1) {
                 nrBorders++;
@@ -462,6 +428,7 @@ void evolve(int initial, int end) {
             for (auto it = set.begin(); it != set.end(); ++it){
                 int neighbors = getNeighbors(*it, i);
 
+                Cell cell = *it;
                 if (neighbors >= 2 && neighbors <= 4) {
                     // with 2 to 4 neighbors the cell lives
                     insertNextGeneration(*it);
@@ -478,7 +445,13 @@ void evolve(int initial, int end) {
             for (auto it = map.begin(); it != map.end(); ++it){
                 if (it->second == 2 || it->second == 3) {
                     insertNextGeneration(it->first);
+                    Cell cell = it->first;
+                    if(cell.getX() == 0 && cell.getY() == 0 && cell.getZ() == 3){
+                        //std::cout << "aqui2" << std::endl;
+                        fflush(stdout);
+                    }
                 }
+
             }
         }
     }
