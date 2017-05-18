@@ -99,6 +99,7 @@ std::vector<DeadMap> deadCells(NR_SETS);
 typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
 
 // Function Headers
+void evolve();
 void evolve(int n, int j);
 int getNeighbors(Cell cell, int i);
 inline int* getDataToSend();
@@ -167,7 +168,15 @@ int main(int argc, char* argv[]) {
                 // all to all
                 firstTimeRoot = false;
             }
-            evolve(0, NR_SETS / nrProcesses);
+
+
+
+            evolve(0, 32);
+
+
+            //printResults();
+            //evolve(8, 16);
+            //printResults();
         }
         else{
             if(firstTimeOthers){
@@ -197,21 +206,17 @@ int main(int argc, char* argv[]) {
 
             }
 
-            /*
-            int value = 0;
-            for(auto it= currentGeneration.begin(); it != currentGeneration.end(); ++it){
-                std::cout << "id: " << id << " cell! " << (*it).size() << std::endl;
-                CellSet set = *it;
-                value+= set.size();
-            }
-            */
-            evolve((NR_SETS / nrProcesses)*id, (NR_SETS / nrProcesses)*(id+1));
 
+            if(id == 1){
+                evolve(0,32);
+                printResults();
+            }
+            //evolve(8,16);
 
 
 
         }
-
+        /*
         // First gather the size of each set among all processes to send
         int *dataToSend = getDataToSend();
         int dataSizeToSend = arraySize;
@@ -409,12 +414,47 @@ inline int generateIndex(int x, int y, int z) {
     return index;
 }
 
+void evolve() {
+    #pragma omp parallel
+    {
+        // We will divide the current generation vector sets dynamically among various threads available
+        #pragma omp for schedule(dynamic, CHUNK)
+        for (int i = 0; i < NR_SETS; i++) {
+            // Each thread iterates through a set...
+            CellSet &set = currentGeneration[i];
+
+            for (auto it = set.begin(); it != set.end(); ++it){
+                int neighbors = getNeighbors(*it, i);
+                if (neighbors >= 2 && neighbors <= 4) {
+                    // with 2 to 4 neighbors the cell lives
+                    insertNextGeneration(*it);
+                }
+            }
+        }
+
+        // We will also divide the dead cells map dynamically among various threads available
+        #pragma omp for schedule(dynamic, CHUNK)
+        for (int i = 0; i < NR_SETS; i++) {
+            // Each thread iterates through a map
+            DeadMap &map = deadCells[i];
+
+            for (auto it = map.begin(); it != map.end(); ++it){
+                if (it->second == 2 || it->second == 3) {
+                    insertNextGeneration(it->first);
+                }
+            }
+        }
+    }
+
+    currentGeneration = std::move(nextGeneration); // new generation is our current generation
+    nextGeneration = std::vector<CellSet>(NR_SETS);
+    for (int i = 0; i < NR_SETS; i++) {
+        initializeMap(deadCells);
+    }
+}
 
 void evolve(int initial, int end) {
-
-    std::cout << "initial: " << initial << std::endl;
-    std::cout << "end: " << end << std::endl;
-
+    std::cout << initial << " " << end << std::endl;
     #pragma omp parallel
     {
         // We will divide the current generation vector sets dynamically among various threads available
@@ -424,32 +464,33 @@ void evolve(int initial, int end) {
             CellSet &set = currentGeneration[i];
 
             for (auto it = set.begin(); it != set.end(); ++it){
-                if(id){
-                    std::cout << "aqui" << std::endl;
-                }
+
+
                 int neighbors = getNeighbors(*it, i);
+                if(id == 0){
+
+                    std::cout << *it << " neigh: " << neighbors << std::endl;
+                    //fflush(stdout);
+                }
+                //Sif(id)
+                    //std::cout << "neightbors: " << neighbors << std::endl;
                 if (neighbors >= 2 && neighbors <= 4) {
                     // with 2 to 4 neighbors the cell lives
                     insertNextGeneration(*it);
-                    if (id) {
-                        std::cout << "INSERTING" << std::endl;
-                    }
+
                 }
             }
         }
 
         // We will also divide the dead cells map dynamically among various threads available
         #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = initial; i < end; i++) {
+        for (int i = 0; i < NR_SETS; i++) {
             // Each thread iterates through a map
             DeadMap &map = deadCells[i];
 
             for (auto it = map.begin(); it != map.end(); ++it){
                 if (it->second == 2 || it->second == 3) {
                     insertNextGeneration(it->first);
-                    if (id) {
-                        std::cout << "INSERTING" << std::endl;
-                    }
                 }
             }
         }
@@ -457,7 +498,7 @@ void evolve(int initial, int end) {
 
     currentGeneration = std::move(nextGeneration); // new generation is our current generation
     nextGeneration = std::vector<CellSet>(NR_SETS);
-    for (int i = initial; i < end; i++) {
+    for (int i = 0; i < NR_SETS; i++) {
         initializeMap(deadCells);
     }
 }
