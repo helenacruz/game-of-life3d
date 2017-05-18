@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include <unistd.h>
 
 #define ARG_SIZE 3
 #define NR_SETS 32
@@ -87,7 +88,7 @@ public:
 int size, nrProcesses, id;
 bool firstTimeRoot = true;
 bool firstTimeOthers = true;
-int *cellCounter;
+int *cellCounter, *deadCounter;
 
 
 // Variables
@@ -99,6 +100,7 @@ std::vector<DeadMap> deadCells(NR_SETS);
 typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
 
 // Function Headers
+void distributeDeadCells();
 void evolve();
 void evolve(int n, int j);
 int getNeighbors(Cell cell, int i);
@@ -156,6 +158,7 @@ int main(int argc, char* argv[]) {
 
     // Initialize set counter array
     cellCounter = new int[nrProcesses];
+    deadCounter = new int[nrProcesses];
 
     for(int i = 0; i < nrGenerations; i++){
 
@@ -197,17 +200,10 @@ int main(int argc, char* argv[]) {
 
                 prepareCellData(data, count);
 
-                printResults();
-
                 // all to all
                 firstTimeOthers = false;
-
-                // When not needed anymore, free data
-                //delete data;
-
             }
 
-            //evolve(0,32);
             evolve((NR_SETS / nrProcesses)*id, (NR_SETS /nrProcesses)*(id+1));
 
         }
@@ -215,16 +211,7 @@ int main(int argc, char* argv[]) {
         // First gather the size of each set among all processes to send
         int *dataToSend = getDataToSend();
         int dataSizeToSend = arraySize;
-
-
         MPI_Allgather(&dataSizeToSend, 1, MPI_INT, cellCounter, 1, MPI_INT, MPI_COMM_WORLD);
-
-        if(!id){
-            for(int z = 0; z < nrProcesses; z++){
-             //   std::cout << "cell: "<< cellCounter[z] << std::endl;
-            }
-        }
-
 
         // Then ...
         // Allocate data for the receiving array
@@ -233,7 +220,6 @@ int main(int argc, char* argv[]) {
             totalSizeToReceive += cellCounter[m];
         }
         int receivedData[totalSizeToReceive];
-       // std::cout << "size: "<< totalSizeToReceive << std::endl;
 
         // Get the offset of each process
         int offset[nrProcesses];
@@ -242,19 +228,15 @@ int main(int argc, char* argv[]) {
             offset[j] = offset[j - 1] + cellCounter[j - 1];
         }
 
-
         MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, offset ,MPI_INT, MPI_COMM_WORLD);
-        for(auto it=currentGeneration.begin(); it != currentGeneration.end(); it++){
-            (*it).clear();
-        }
         prepareGeneration(receivedData, offset);
 
-
     }
 
-    if(id == 1){
-     //  printResults();
+    if(!id){
+        printResults();
     }
+
 
 
     // Final Barrier
@@ -377,24 +359,34 @@ inline int generateIndex(int x, int y, int z) {
     return index;
 }
 
-void evolve() {
+void evolve(int initial, int end) {
+    if (id == nrProcesses - 1) { // last process does the rest
+        end = NR_SETS;
+    }
     #pragma omp parallel
     {
         // We will divide the current generation vector sets dynamically among various threads available
         #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = 0; i < NR_SETS; i++) {
+        for (int i = initial; i < end; i++) {
             // Each thread iterates through a set...
             CellSet &set = currentGeneration[i];
 
-            for (auto it = set.begin(); it != set.end(); ++it){
+            for (auto it = set.begin(); it != set.end(); ++it) {
                 int neighbors = getNeighbors(*it, i);
+
+                Cell cell = *it;
                 if (neighbors >= 2 && neighbors <= 4) {
                     // with 2 to 4 neighbors the cell lives
                     insertNextGeneration(*it);
                 }
             }
         }
+    }
 
+    distributeDeadCells();
+
+    #pragma omp parallel
+    {
         // We will also divide the dead cells map dynamically among various threads available
         #pragma omp for schedule(dynamic, CHUNK)
         for (int i = 0; i < NR_SETS; i++) {
@@ -402,8 +394,14 @@ void evolve() {
             DeadMap &map = deadCells[i];
 
             for (auto it = map.begin(); it != map.end(); ++it){
+
+                //std::cout << it->first << "      " << "n: " << it->second << std::endl;
+               // fflush(stdout);
+              //  usleep(100000);
+
                 if (it->second == 2 || it->second == 3) {
                     insertNextGeneration(it->first);
+                    Cell cell = it->first;
                 }
             }
         }
@@ -416,50 +414,65 @@ void evolve() {
     }
 }
 
-void evolve(int initial, int end) {
-    #pragma omp parallel
-    {
-        // We will divide the current generation vector sets dynamically among various threads available
-        #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = initial; i < end; i++) {
-            // Each thread iterates through a set...
-            CellSet &set = currentGeneration[i];
+void distributeDeadCells(){
+    int deadNr = 0;
+    for (int i = 0; i < NR_SETS; i++) {
+        // Each thread iterates through a map
+        DeadMap &map = deadCells[i];
 
-            for (auto it = set.begin(); it != set.end(); ++it){
-                int neighbors = getNeighbors(*it, i);
+        deadNr += map.size();
 
-                Cell cell = *it;
-                if (neighbors >= 2 && neighbors <= 4) {
-                    // with 2 to 4 neighbors the cell lives
-                    insertNextGeneration(*it);
-                }
-            }
+    }
+    deadNr = deadNr*4;
+    int deadArray[deadNr];
+
+    int index = 0;
+    //std::cout << "=================" << std::endl;
+    for (int i = 0; i < NR_SETS; i++) {
+        DeadMap &map = deadCells[i];
+        for (auto it = map.begin(); it != map.end(); ++it){
+            deadArray[index] = it->first.getX();
+            deadArray[index+1] = it->first.getY();
+            deadArray[index+2] = it->first.getZ();
+            deadArray[index+3] = it->second;
+            index+=4;
+
         }
 
-        // We will also divide the dead cells map dynamically among various threads available
-        #pragma omp for schedule(dynamic, CHUNK)
-        for (int i = 0; i < NR_SETS; i++) {
-            // Each thread iterates through a map
-            DeadMap &map = deadCells[i];
-
-            for (auto it = map.begin(); it != map.end(); ++it){
-                if (it->second == 2 || it->second == 3) {
-                    insertNextGeneration(it->first);
-                    Cell cell = it->first;
-                    if(cell.getX() == 0 && cell.getY() == 0 && cell.getZ() == 3){
-                        //std::cout << "aqui2" << std::endl;
-                        fflush(stdout);
-                    }
-                }
-
-            }
-        }
     }
 
-    currentGeneration = std::move(nextGeneration); // new generation is our current generation
-    nextGeneration = std::vector<CellSet>(NR_SETS);
-    for (int i = 0; i < NR_SETS; i++) {
-        initializeMap(deadCells);
+    // First gather the size of each set among all processes to send
+
+    MPI_Allgather(&deadNr, 1, MPI_INT, deadCounter, 1, MPI_INT, MPI_COMM_WORLD);
+
+    // Then ...
+    // Allocate data for the receiving array
+    int totalSizeToReceive = 0;
+    for(int m = 0; m < nrProcesses; m++){
+        totalSizeToReceive += deadCounter[m];
+    }
+    int receivedData[totalSizeToReceive];
+
+    // Get the offset of each process
+    int offset[nrProcesses];
+    offset[0] = 0;
+    for (int j = 1; j < nrProcesses; j++) {
+        offset[j] = offset[j - 1] + deadCounter[j - 1];
+    }
+
+    MPI_Allgatherv(deadArray, deadNr, MPI_INT, receivedData, deadCounter, offset ,MPI_INT, MPI_COMM_WORLD);
+
+
+    for (int i = 0; i < nrProcesses; i++) {
+        if (id == i) {
+            continue;
+        }
+        for (int j = offset[i]; j < deadCounter[i] + offset[i]; j+=4) {
+            Cell cell(receivedData[j], receivedData[j + 1], receivedData[j + 2]);
+            deadCells[cell.getIndex()][cell] += receivedData[j+3];
+            //std::cout << "cell: " << cell << " nr: " << receivedData[j+3]<< " contador: " << deadCells[cell.getIndex()][cell] << std::endl;
+            usleep(10000);
+        }
     }
 }
 
