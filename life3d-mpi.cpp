@@ -101,13 +101,13 @@ typedef std::unordered_map<Cell, int, Cell::hash> DeadMap;
 // Function Headers
 void evolve(int n, int j);
 int getNeighbors(Cell cell, int i);
-inline int* getDataToSend(int j);
+inline int* getDataToSend();
 inline int getSpaceCellSize(int j);
 inline void prepareCellData(int* data, int count);
 inline void initializeMap(std::vector<DeadMap> &maps);
 void insertDeadCell(Cell cell);
 void insertNextGeneration(Cell cell);
-void prepareGeneration(int *data, int totalSizeToReceive, int *displs);
+void prepareGeneration(int *data, int *offset);
 inline void printResults();
 int arraySize;
 
@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
         if(!id) {
             if(firstTimeRoot){
                 for (int j = 1; j < nrProcesses; j++) {
-                    int *data = getDataToSend(j);
+                    int *data = getDataToSend();
                     MPI_Send(data, arraySize, MPI_INT, j, OP_SEND_GENERATION, MPI_COMM_WORLD);
                 }
                 // all to all
@@ -196,42 +196,76 @@ int main(int argc, char* argv[]) {
                 free(data);
 
             }
+
+            /*
+            int value = 0;
+            for(auto it= currentGeneration.begin(); it != currentGeneration.end(); ++it){
+                std::cout << "id: " << id << " cell! " << (*it).size() << std::endl;
+                CellSet set = *it;
+                value+= set.size();
+            }
+            */
             evolve((NR_SETS / nrProcesses)*id, (NR_SETS / nrProcesses)*(id+1));
+
+
+
+
         }
 
-        // All gather
-        /*
-        int *dataToSend = getDataToSend(id);
-
         // First gather the size of each set among all processes to send
+        int *dataToSend = getDataToSend();
         int dataSizeToSend = arraySize;
-
         MPI_Allgather(&dataSizeToSend, 1, MPI_INT, cellCounter, 1, MPI_INT, MPI_COMM_WORLD);
 
         // Then ...
+        // Allocate data for the receiving array
         int totalSizeToReceive = 0;
         for(int m = 0; m < nrProcesses; m++){
             totalSizeToReceive += cellCounter[m];
         }
-
-        // Allocate data for the receiving array
         int *receivedData = new int[totalSizeToReceive];
 
         // Get the offset of each process
-        int *displs = new int[nrProcesses];
-        displs[0] = 0;
+        int *offset = new int[nrProcesses];
+        offset[0] = 0;
         for (int j = 1; j < nrProcesses; j++) {
-            displs[j] = displs[j - 1] + cellCounter[j - 1];
+            offset[j] = offset[j - 1] + cellCounter[j - 1];
         }
 
-        MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, displs ,MPI_INT, MPI_COMM_WORLD);
+        /*
+        if(id){
+            std::cout << "id: " << id << " size: " << arraySize << std::endl;
+        }
 
-        prepareGeneration(receivedData, totalSizeToReceive, displs);
+        for(int z = 0; z < arraySize; ){
+            if(dataToSend[z] == -1){
+                z+=1;
+            }else{
+                std::cout << "id: " << id << " value: " << dataToSend[z] << " " << dataToSend[z+1] << " " << dataToSend[z+2] << std::endl;
+                z+=3;
+            }
+        }
+
+
+        MPI_Allgatherv(dataToSend, dataSizeToSend, MPI_INT, receivedData, cellCounter, offset ,MPI_INT, MPI_COMM_WORLD);
+
+        std::cout << "---------------" << std::endl;
+        if(id == 1){
+            for(int z = 0; z < totalSizeToReceive; z++){
+                std::cout << "value: " << receivedData[z] << std::endl;
+            }
+        }
+
+
+        prepareGeneration(receivedData, offset);
+
         */
+
     }
 
-    if(!id)
+    //if(!id)
         //printResults();
+
 
     // Final Barrier
     MPI_Barrier (MPI_COMM_WORLD);
@@ -275,7 +309,7 @@ int main(int argc, char* argv[]) {
  */
 
 
-inline int* getDataToSend(int j){
+inline int* getDataToSend(){
 
     // data do send space declaration
     int initialSetIndex = 0;
@@ -318,15 +352,14 @@ inline int* getDataToSend(int j){
  * counter: vector of numbers of elements each process sends
  * displs: vector that contains the index where each process data starts
  */
-inline void prepareGeneration(int *data, int totalSize, int *displs){
-    int initialIndex;
-    int nrBorders = 0;
+inline void prepareGeneration(int *data, int *offset){
+    int nrBorders;
     int index;
 
     for (int i = 0; i < nrProcesses; i++) {
-        initialIndex = data[displs[i]];
-        for (int j = displs[i] + 1; j < cellCounter[i] + displs[i]; ) {
-            index = (initialIndex + nrBorders) % NR_SETS;
+        nrBorders = 0;
+        for (int j = offset[i]; j < cellCounter[i] + offset[i]; ) {
+            index = nrBorders % NR_SETS;
             if (data[j] == -1) {
                 nrBorders++;
                 j++;
@@ -378,6 +411,10 @@ inline int generateIndex(int x, int y, int z) {
 
 
 void evolve(int initial, int end) {
+
+    std::cout << "initial: " << initial << std::endl;
+    std::cout << "end: " << end << std::endl;
+
     #pragma omp parallel
     {
         // We will divide the current generation vector sets dynamically among various threads available
@@ -387,10 +424,16 @@ void evolve(int initial, int end) {
             CellSet &set = currentGeneration[i];
 
             for (auto it = set.begin(); it != set.end(); ++it){
+                if(id){
+                    std::cout << "aqui" << std::endl;
+                }
                 int neighbors = getNeighbors(*it, i);
                 if (neighbors >= 2 && neighbors <= 4) {
                     // with 2 to 4 neighbors the cell lives
                     insertNextGeneration(*it);
+                    if (id) {
+                        std::cout << "INSERTING" << std::endl;
+                    }
                 }
             }
         }
@@ -404,6 +447,9 @@ void evolve(int initial, int end) {
             for (auto it = map.begin(); it != map.end(); ++it){
                 if (it->second == 2 || it->second == 3) {
                     insertNextGeneration(it->first);
+                    if (id) {
+                        std::cout << "INSERTING" << std::endl;
+                    }
                 }
             }
         }
