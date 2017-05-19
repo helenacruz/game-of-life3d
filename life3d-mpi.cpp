@@ -14,7 +14,7 @@
 
 #define ARG_SIZE 3
 #define NR_SETS 32
-#define CHUNK 4
+#define CHUNK 1
 #define OP_SEND_GENERATION 1
 
 inline int generateIndex(int x, int y, int z);
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
 
     for(int i = 0; i < nrGenerations; i++){
 
-        MPI_Barrier (MPI_COMM_WORLD);
+        //MPI_Barrier (MPI_COMM_WORLD);
         if(!id) {
             if(firstTimeRoot){
 
